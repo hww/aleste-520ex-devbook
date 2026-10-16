@@ -1,7 +1,9 @@
 # Aleste 520EX / Aleste LX Developer's Book
 
-[Русское описание ниже]
-
+<table>
+<tr>
+<td width="50%" valign="top">
+  
 Welcome! This repository is dedicated to creating a clean, human-oriented, and comprehensive development guide for the **Aleste 520EX** computer and its modern re-imagining, the **Aleste LX**.
 
 ### Why this repo exists?
@@ -9,11 +11,10 @@ For a long time, documentation for the Aleste was either incomplete, scattered a
 
 This project aims to bridge the gap. We are building a **DevBook**—a practical architectural guide focused on the creator, filled with concepts, register maps, and coding patterns, rather than just raw hardware tables.
 
-[Aleste 520EX — programming manual](./en/index.md")
+[Aleste 520EX — programming manual](./en/index.md)
 
----
-
-# Книга разработчика Aleste 520EX / Aleste LX
+</td>
+<td width="50%" valign="top">
 
 Добро пожаловать! Этот репозиторий создан для того, чтобы собрать понятное, структурированное и ориентированное на человека руководство по программированию оригинального компьютера **Aleste 520EX** и его современной ПЛИС-модификации **Aleste LX**.
 
@@ -22,4 +23,8 @@ This project aims to bridge the gap. We are building a **DevBook**—a practical
 
 Этот репозиторий призван решить проблему. Мы пишем **DevBook** — практический путеводитель по архитектуре, развернутый лицом к программисту, с объяснением логики работы железа и паттернов проектирования.
 
-[Aleste 520EX — руководство програмирования](./ru/index.md")
+[Aleste 520EX — руководство програмирования](./ru/index.md)
+
+</td>
+</tr>
+</table>

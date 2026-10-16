@@ -2,7 +2,7 @@
 
 <table>
 <tr>
-<td>
+<td width="50%">
   
 Welcome! This repository is dedicated to creating a clean, human-oriented, and comprehensive development guide for the **Aleste 520EX** computer and its modern re-imagining, the **Aleste LX**.
 

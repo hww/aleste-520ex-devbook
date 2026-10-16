@@ -11,7 +11,7 @@ For a long time, documentation for the Aleste was either incomplete, scattered a
 
 This project aims to bridge the gap. We are building a **DevBook**—a practical architectural guide focused on the creator, filled with concepts, register maps, and coding patterns, rather than just raw hardware tables.
 
-[Aleste 520EX — programming manual](./en/index.md")
+[Aleste 520EX — programming manual](./en/index.md)
 
 </td>
 <td>
@@ -23,7 +23,7 @@ This project aims to bridge the gap. We are building a **DevBook**—a practical
 
 Этот репозиторий призван решить проблему. Мы пишем **DevBook** — практический путеводитель по архитектуре, развернутый лицом к программисту, с объяснением логики работы железа и паттернов проектирования.
 
-[Aleste 520EX — руководство програмирования](./ru/index.md")
+[Aleste 520EX — руководство програмирования](./ru/index.md)
 
 </td>
 </tr>

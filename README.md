@@ -9,6 +9,8 @@ For a long time, documentation for the Aleste was either incomplete, scattered a
 
 This project aims to bridge the gap. We are building a **DevBook**—a practical architectural guide focused on the creator, filled with concepts, register maps, and coding patterns, rather than just raw hardware tables.
 
+[Aleste 520EX — programming manual](./en/index.md")
+
 ---
 
 # Книга разработчика Aleste 520EX / Aleste LX
@@ -19,3 +21,5 @@ This project aims to bridge the gap. We are building a **DevBook**—a practical
 Долгое время документация по Алесте существовала в виде разрозненных заметок «для себя» или сухих отсылок к архитектуре Amstrad CPC. Практикующему разработчику, который хочет написать или портировать игру, было безумно сложно разобраться, как на самом деле управлять мапперами памяти, переключать новые видеорежимы высокого разрешения или запускать DMA-звук на MagicSound.
 
 Этот репозиторий призван решить проблему. Мы пишем **DevBook** — практический путеводитель по архитектуре, развернутый лицом к программисту, с объяснением логики работы железа и паттернов проектирования.
+
+[Aleste 520EX — руководство програмирования](./ru/index.md")

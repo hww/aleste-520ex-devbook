@@ -122,21 +122,21 @@ Gate Array управляется через ввод-вывод. Gate Array в�
 
 **Сводка:**
 
-| Бит | Значение | Функция |
-|-----|----------|---------|
+| Бит | Значение | Функция                         |
+|-----|----------|---------------------------------|
 | 7   | 0        | Функция Gate Array «Выбор пера» |
-| 6   | 0        | |
-| 5   | x        | не используется |
-| 4   | 1        | Выбрать границу |
-| 3   | x        | игнорируется |
-| 2   | x        | игнорируется |
-| 1   | x        | игнорируется |
-| 0   | x        | игнорируется |
-| 4   | 0        | Выбрать перо |
-| 3   | x        | Номер пера |
-| 2   | x        | |
-| 1   | x        | |
-| 0   | x        | |
+| 6   | 0        |                                 |
+| 5   | x        | не используется                 |
+| 4   | 1        | Выбрать границу                 |
+| 3   | x        | игнорируется                    |
+| 2   | x        | игнорируется                    |
+| 1   | x        | игнорируется                    |
+| 0   | x        | игнорируется                    |
+| 4   | 0        | Выбрать перо                    |
+| 3   | x        | Номер пера                      |
+| 2   | x        |                                 |
+| 1   | x        |                                 |
+| 0   | x        |                                 |
 
 ### Выбор цвета
 
@@ -144,55 +144,55 @@ Gate Array управляется через ввод-вывод. Gate Array в�
 
 Хотя предусмотрено 32 цвета, возможны только 27. Остальные цвета являются дубликатами уже имеющихся в палитре.
 
-| Бит | Значение | Функция |
-|-----|----------|---------|
+| Бит | Значение | Функция                          |
+|-----|----------|----------------------------------|
 | 7   | 0        | Функция Gate Array «Выбор цвета» |
-| 6   | 1        | |
-| 5   | x        | не используется |
-| 4   | x        | Номер цвета |
-| 3   | x        | |
-| 2   | x        | |
-| 1   | x        | |
-| 0   | x        | |
+| 6   | 1        |                                  |
+| 5   | x        | не используется                  |
+| 4   | x        | Номер цвета                      |
+| 3   | x        |                                  |
+| 2   | x        |                                  |
+| 1   | x        |                                  |
+| 0   | x        |                                  |
 
 #### Аппаратная цветовая палитра
 
-Ниже приведена таблица цветов. Для визуализации предлагается использовать изображения с именованием по схеме![color](../../images/gate-array/colors/rgb_XXX_XXX_XXX.png), где `XXX` — процентное значение компонента (0–100).
+Ниже приведена таблица цветов.
 
-| Номер цвета | Название цвета | R % | G % | B % | Изображение |
-|-------------|----------------|-----|-----|-----|-------------|
-| 0 | White | 50 | 50 | 50 |![color](../../images/gate-array/colors/rgb_050_050_050.png) |
-| 1 | White (примечание 1) | 50 | 50 | 50 |![color](../../images/gate-array/colors/rgb_050_050_050.png) |
-| 2 | Sea Green | 0 | 100 | 50 |![color](../../images/gate-array/colors/rgb_000_100_050.png) |
-| 3 | Pastel Yellow | 50 | 50 | 0 |![color](../../images/gate-array/colors/rgb_050_050_000.png) |
-| 4 | Blue | 0 | 0 | 50 |![color](../../images/gate-array/colors/rgb_000_000_050.png) |
-| 5 | Purple | 100 | 0 | 50 |![color](../../images/gate-array/colors/rgb_100_000_050.png) |
-| 6 | Cyan | 0 | 50 | 50 |![color](../../images/gate-array/colors/rgb_000_050_050.png) |
-| 7 | Pink | 100 | 50 | 50 |![color](../../images/gate-array/colors/rgb_100_050_050.png) |
-| 8 | Purple (примечание 1) | 100 | 0 | 50 |![color](../../images/gate-array/colors/rgb_100_000_050.png) |
-| 9 | Pastel Yellow (примечание 1) | 50 | 50 | 0 |![color](../../images/gate-array/colors/rgb_050_050_000.png) |
-| 10 | Bright Yellow | 100 | 100 | 0 |![color](../../images/gate-array/colors/rgb_100_100_000.png) |
-| 11 | Bright White | 100 | 100 | 100 |![color](../../images/gate-array/colors/rgb_100_100_100.png) |
-| 12 | Bright Red | 100 | 0 | 0 |![color](../../images/gate-array/colors/rgb_100_000_000.png) |
-| 13 | Bright Magenta | 100 | 0 | 100 |![color](../../images/gate-array/colors/rgb_100_000_100.png) |
-| 14 | Orange | 100 | 50 | 0 |![color](../../images/gate-array/colors/rgb_100_050_000.png) |
-| 15 | Pastel Magenta | 100 | 50 | 100 |![color](../../images/gate-array/colors/rgb_100_050_100.png) |
-| 16 | Blue (примечание 1) | 0 | 0 | 50 |![color](../../images/gate-array/colors/rgb_000_000_050.png) |
-| 17 | Sea Green (примечание 1) | 0 | 100 | 50 |![color](../../images/gate-array/colors/rgb_000_100_050.png) |
-| 18 | Bright Green | 0 | 100 | 0 |![color](../../images/gate-array/colors/rgb_000_100_000.png) |
-| 19 | Bright Cyan | 0 | 100 | 100 |![color](../../images/gate-array/colors/rgb_000_100_100.png) |
-| 20 | Black | 0 | 0 | 0 |![color](../../images/gate-array/colors/rgb_000_000_000.png) |
-| 21 | Bright Blue | 0 | 0 | 100 |![color](../../images/gate-array/colors/rgb_000_000_100.png) |
-| 22 | Green | 0 | 50 | 0 |![color](../../images/gate-array/colors/rgb_000_050_000.png) |
-| 23 | Sky Blue | 0 | 50 | 100 |![color](../../images/gate-array/colors/rgb_000_050_100.png) |
-| 24 | Magenta | 50 | 0 | 50 |![color](../../images/gate-array/colors/rgb_050_000_050.png) |
-| 25 | Pastel Green | 50 | 100 | 0 |![color](../../images/gate-array/colors/rgb_050_100_000.png) |
-| 26 | Lime | 50 | 100 | 0 |![color](../../images/gate-array/colors/rgb_050_100_000.png) |
-| 27 | Pastel Cyan | 50 | 100 | 100 |![color](../../images/gate-array/colors/rgb_050_100_100.png) |
-| 28 | Red | 50 | 0 | 0 |![color](../../images/gate-array/colors/rgb_050_000_000.png) |
-| 29 | Mauve | 50 | 0 | 100 |![color](../../images/gate-array/colors/rgb_050_000_100.png) |
-| 30 | Yellow | 50 | 50 | 0 |![color](../../images/gate-array/colors/rgb_050_050_000.png) |
-| 31 | Pastel Blue | 50 | 50 | 100 |![color](../../images/gate-array/colors/rgb_050_050_100.png) |
+| Номер цвета | Название цвета               | R % | G % | B % | Изображение                                                  |
+|-------------|------------------------------|-----|-----|-----|--------------------------------------------------------------|
+| 0           | White                        | 50  | 50  | 50  | ![color](../../images/gate-array/colors/rgb_050_050_050.png) |
+| 1           | White (примечание 1)         | 50  | 50  | 50  | ![color](../../images/gate-array/colors/rgb_050_050_050.png) |
+| 2           | Sea Green                    | 0   | 100 | 50  | ![color](../../images/gate-array/colors/rgb_000_100_050.png) |
+| 3           | Pastel Yellow                | 50  | 50  | 0   | ![color](../../images/gate-array/colors/rgb_050_050_000.png) |
+| 4           | Blue                         | 0   | 0   | 50  | ![color](../../images/gate-array/colors/rgb_000_000_050.png) |
+| 5           | Purple                       | 100 | 0   | 50  | ![color](../../images/gate-array/colors/rgb_100_000_050.png) |
+| 6           | Cyan                         | 0   | 50  | 50  | ![color](../../images/gate-array/colors/rgb_000_050_050.png) |
+| 7           | Pink                         | 100 | 50  | 50  | ![color](../../images/gate-array/colors/rgb_100_050_050.png) |
+| 8           | Purple (примечание 1)        | 100 | 0   | 50  | ![color](../../images/gate-array/colors/rgb_100_000_050.png) |
+| 9           | Pastel Yellow (примечание 1) | 50  | 50  | 0   | ![color](../../images/gate-array/colors/rgb_050_050_000.png) |
+| 10          | Bright Yellow                | 100 | 100 | 0   | ![color](../../images/gate-array/colors/rgb_100_100_000.png) |
+| 11          | Bright White                 | 100 | 100 | 100 | ![color](../../images/gate-array/colors/rgb_100_100_100.png) |
+| 12          | Bright Red                   | 100 | 0   | 0   | ![color](../../images/gate-array/colors/rgb_100_000_000.png) |
+| 13          | Bright Magenta               | 100 | 0   | 100 | ![color](../../images/gate-array/colors/rgb_100_000_100.png) |
+| 14          | Orange                       | 100 | 50  | 0   | ![color](../../images/gate-array/colors/rgb_100_050_000.png) |
+| 15          | Pastel Magenta               | 100 | 50  | 100 | ![color](../../images/gate-array/colors/rgb_100_050_100.png) |
+| 16          | Blue (примечание 1)          | 0   | 0   | 50  | ![color](../../images/gate-array/colors/rgb_000_000_050.png) |
+| 17          | Sea Green (примечание 1)     | 0   | 100 | 50  | ![color](../../images/gate-array/colors/rgb_000_100_050.png) |
+| 18          | Bright Green                 | 0   | 100 | 0   | ![color](../../images/gate-array/colors/rgb_000_100_000.png) |
+| 19          | Bright Cyan                  | 0   | 100 | 100 | ![color](../../images/gate-array/colors/rgb_000_100_100.png) |
+| 20          | Black                        | 0   | 0   | 0   | ![color](../../images/gate-array/colors/rgb_000_000_000.png) |
+| 21          | Bright Blue                  | 0   | 0   | 100 | ![color](../../images/gate-array/colors/rgb_000_000_100.png) |
+| 22          | Green                        | 0   | 50  | 0   | ![color](../../images/gate-array/colors/rgb_000_050_000.png) |
+| 23          | Sky Blue                     | 0   | 50  | 100 | ![color](../../images/gate-array/colors/rgb_000_050_100.png) |
+| 24          | Magenta                      | 50  | 0   | 50  | ![color](../../images/gate-array/colors/rgb_050_000_050.png) |
+| 25          | Pastel Green                 | 50  | 100 | 0   | ![color](../../images/gate-array/colors/rgb_050_100_000.png) |
+| 26          | Lime                         | 50  | 100 | 0   | ![color](../../images/gate-array/colors/rgb_050_100_000.png) |
+| 27          | Pastel Cyan                  | 50  | 100 | 100 | ![color](../../images/gate-array/colors/rgb_050_100_100.png) |
+| 28          | Red                          | 50  | 0   | 0   | ![color](../../images/gate-array/colors/rgb_050_000_000.png) |
+| 29          | Mauve                        | 50  | 0   | 100 | ![color](../../images/gate-array/colors/rgb_050_000_100.png) |
+| 30          | Yellow                       | 50  | 50  | 0   | ![color](../../images/gate-array/colors/rgb_050_050_000.png) |
+| 31          | Pastel Blue                  | 50  | 50  | 100 | ![color](../../images/gate-array/colors/rgb_050_050_100.png) |
 
 **Примечания:** Это неофициальный цвет.
 

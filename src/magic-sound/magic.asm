@@ -29,24 +29,24 @@
 ;   - Vibrato scaling is approximate (see VIBRATO)
 ;   - T_VIB_1 is 256 bytes in this dump but RESTORE copies 512 (see notes)
 ;
-; BUILD
-;   sjasmplus --raw=magic.bin magic.asm
-;   (or z80asm -b magic.asm -o magic.bin; replace DEFM with DB if needed)
-;
 ; =============================================================================
 ;
-; Target assembler: sjasmplus (cross-platform). M80/L80 compatible syntax.
+; BUILD
 ;
-; Build (sjasmplus):
-;   sjasmplus --raw=magic.bin magic.asm
+; Target assembler: M80/L80 (historical, CP/M-era). The macros in this
+; file use M80 syntax: LOCAL with comma-separated names, and macro
+; parameters named SEG/SEG1 (which sjasmplus would textually substitute
+; inside SEG_A, SEG_B, etc., breaking the code). Do not try to build
+; this with sjasmplus without rewriting the macros.
 ;
 ; Build (M80/L80, historical):
 ;   M80 =MAGIC
 ;   L80 /P:100,MAGIC,MAGIC/N/E
 ;
-; Build (z88dk z80asm):
-;   z80asm -b magic.asm -o magic.bin
-;   (replace DEFM with DB if your z80asm version complains)
+; Cross-platform alternatives:
+;   - z88dk's z80asm may work if it accepts M80 LOCAL syntax; verify.
+;   - sjasmplus requires rewriting MA_START / MA_NMI (parameter names
+;     must not be prefixes of other identifiers; LOCAL syntax differs).
 ;
 ; =============================================================================
 ; Variable name glossary

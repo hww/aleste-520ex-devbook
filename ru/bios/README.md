@@ -55,6 +55,7 @@ L0153: JP COM_INI     ; инициализация RS-232
 | **Принтер**    | `BIOS.DRV` | Параллельный/последовательный вывод                | [05-printer.md](05-printer.md)   |
 | **Графика**    | `BIOS.GRP` | Точки, линии, прямоугольники, режимы записи        | [06-graphics.md](06-graphics.md) |
 | **Спрайты**    | `BIOS.SPR` | Копирование RAM↔VRAM, спрайты                      | [07-sprites.md](07-sprites.md)   |
+| **Шрифт**      | `PGT.REL`  |                                                    | [                                |
 
 **Важно:** `BIOS.GRP` и `BIOS.SPR` **не подключены** к `BIOS.MAC` через `INCLUDE` в текущем комплекте. Это библиотеки, которые линкуются отдельно, если нужна графика.
 
@@ -70,4 +71,14 @@ BIOS.MAC  ──INCLUDE──► BIOS.SCR
           ──INCLUDE──► (BIOS.GRP, BIOS.SPR — добавить вручную)
           ──EXTRN───► ALEST (шрифт, отсутствует)
 ROM.MAC   ──EXTRN───► DATA (заставка, отсутствует), ALEST
+```
+
+Скрипт для сболки
+
+```bash
+M80=BIOS
+L80 /P:0,BIOS,PGT,BIOS/N/E
+DEL BIOS.REL
+COPY BIOS.COM A:BIOS.SYS
+A:RESET
 ```

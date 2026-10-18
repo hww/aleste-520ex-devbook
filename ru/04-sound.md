@@ -271,12 +271,26 @@ Magic Sound Board (см. упоминание в разделе про расш�
 ```asm
 ; Записать значение E в регистр A
 ; A = номер регистра, E = значение
-WritePSG:
-    PUSH AF
-    LD A, 7
-    OUT (#F6XX), A     ; настраиваем порт C на выход
-    POP AF
-    ; ... (дальше последовательность BC1/BDIR)
+WR_PSG:     DI
+            PUSH BC
+            LD B,0F4H
+            OUT (C),D        ; порт A = номер регистра (D)
+            LD B,0F6H
+            IN A,(C)         ; читаем текущее состояние порта C
+            OR 0C0H          ; BC1=1, BDIR=1 (запись адреса)
+            OUT (C),A
+            AND 3FH          ; сброс BC1/BDIR
+            OUT (C),A
+            LD B,0F4H
+            OUT (C),E        ; порт A = значение (E)
+            LD B,0F6H
+            LD C,A
+            OR 80H           ; BC1=0, BDIR=1 (запись данных)
+            OUT (C),A
+            OUT (C),C        ; сброс
+            POP BC
+            EI
+            RET
 ```
 
 Но это долго, муторно и легко ошибиться. BIOS-функции

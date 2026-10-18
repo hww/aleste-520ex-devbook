@@ -16,12 +16,12 @@
 `#F4XX` означает «все адреса, у которых старший байт равен F4».
 `XX` — любое значение.
 
-В колонке «Decoded as» показано, какие биты важны. Например,
-`%xxxx0x00 xxxxxxxx` означает:
+В колонке «Decoded as» показано, какие биты важны. Шаблон
+записывается **16 битами** (A15…A0): например, `%11110100 xxxxxxxx`
+означает:
 
-- бит 11 должен быть 0;
-- биты 9 и 8 должны быть 00;
-- остальные биты (помеченные `x`) не важны.
+- A15–A8 = `11110100` (`0xF4`) — старший байт адреса;
+- A7–A0 — любые (`x`).
 
 Колонка «Status» показывает, что Aleste делает с этим портом:
 
@@ -38,20 +38,20 @@
 
 | I/O     | Decoded as           | Порт                       | RW |
 |---------|----------------------|----------------------------|----|
-| `#7FXX` | `%01xxxxxx xxxxxxxx` | Gate Array                 | W  |
-| `#BCXX` | `%x0xxxx00 xxxxxxxx` | 6845 CRTC Index            | W  |
-| `#BDXX` | `%x0xxxx01 xxxxxxxx` | 6845 CRTC Data Out         | W  |
-| `#BEXX` | `%x0xxxx10 xxxxxxxx` | 6845 CRTC Status           | R  |
-| `#BFXX` | `%x0xxxx11 xxxxxxxx` | 6845 CRTC Data In          | R  |
-| `#DFXX` | `%xx0xxxxx xxxxxxxx` | Upper ROM Bank Number      | W  |
-| `#EFXX` | `%xxx0xxxx xxxxxxxx` | Printer Port               | W  |
-| `#F4XX` | `%xxxx0x00 xxxxxxxx` | 8255 PPI Port A (PSG Data) | RW |
-| `#F5XX` | `%xxxx0x01 xxxxxxxx` | 8255 PPI Port B            | R  |
-| `#F6XX` | `%xxxx0x10 xxxxxxxx` | 8255 PPI Port C            | W  |
-| `#F7XX` | `%xxxx0x11 xxxxxxxx` | 8255 PPI Control           | W  |
-| `#FA7E` | `%xxxxx0x0 0xxxxxxx` | Floppy Motor Control       | W  |
-| `#FB7E` | `%xxxxx0x1 0xxxxxx0` | 765 FDC Status             | R  |
-| `#FB7F` | `%xxxxx0x1 0xxxxxx1` | 765 FDC Data               | RW |
+| `#7FXX` | `%01111111 xxxxxxxx` | Gate Array                 | W  |
+| `#BCXX` | `%10111100 xxxxxxxx` | 6845 CRTC Index            | W  |
+| `#BDXX` | `%10111101 xxxxxxxx` | 6845 CRTC Data Out         | W  |
+| `#BEXX` | `%10111110 xxxxxxxx` | 6845 CRTC Status           | R  |
+| `#BFXX` | `%10111111 xxxxxxxx` | 6845 CRTC Data In          | R  |
+| `#DFXX` | `%11011111 xxxxxxxx` | Upper ROM Bank Number      | W  |
+| `#EFXX` | `%11101111 xxxxxxxx` | Printer Port               | W  |
+| `#F4XX` | `%11110100 xxxxxxxx` | 8255 PPI Port A (PSG Data) | RW |
+| `#F5XX` | `%11110101 xxxxxxxx` | 8255 PPI Port B            | R  |
+| `#F6XX` | `%11110110 xxxxxxxx` | 8255 PPI Port C            | W  |
+| `#F7XX` | `%11110111 xxxxxxxx` | 8255 PPI Control           | W  |
+| `#FA7E` | `%11111010 01111110` | Floppy Motor Control       | W  |
+| `#FB7E` | `%11111011 01111110` | 765 FDC Status             | R  |
+| `#FB7F` | `%11111011 01111111` | 765 FDC Data               | RW |
 
 Это стандарт. Любая программа, написанная для CPC, ожидает
 именно этих портов.
@@ -60,38 +60,41 @@
 
 Теперь — что Aleste делает с этим списком.
 
-| I/O               | Decoded as           | Status | Порт                          | RW |
-|-------------------|----------------------|--------|-------------------------------|----|
-| `#7CXX`           | `%0xxxxx00 xxxxxxxx` | keep   | RAM Mapper page 0             | RW |
-| `#7DXX`           | `%0xxxxx01 xxxxxxxx` | keep   | RAM Mapper page 1             | RW |
-| `#7EXX`           | `%0xxxxx10 xxxxxxxx` | keep   | RAM Mapper page 2             | RW |
-| `#7FXX`           | `%0xxxxx11 xxxxxxxx` | keep   | RAM Mapper page 3             | RW |
-| `#7FXX`           | `%0xxxxxxx xxxxxxxx` | keep   | Multiport (Gate Array)        | W  |
-| `#BCXX`–`#BFXX`   | —                    | keep   | CRTC 6845                     | —  |
-| `#DFXX`           | `%xx0xxxxx xxxxxxxx` | keep   | Upper ROM (bank 3 = Bootmenu) | W  |
-| `#EEXX`           | `%xxx0xxx0 xxxxxxxx` | modify | 8251 USART Data (RS232/Mouse) | RW |
-| `#EFXX`           | `%xxx0xxx1 xxxxxxxx` | modify | 8251 USART Control/Status     | RW |
-| `#F4XX`–`#F7XX`   | —                    | keep   | PPI 8255                      | —  |
-| `#FA7E`           | —                    | keep   | Floppy Motor Control          | W  |
-| `#FABF`           | `%xxxxx0x0 10xxxxxx` | modify | EXTPORT                       | W  |
-| `#FB7E` / `#FB7F` | —                    | keep   | 765 FDC                       | —  |
+| I/O               | Decoded as             | Status | Порт                          | RW |
+|-------------------|------------------------|--------|-------------------------------|----|
+| `#7CXX`           | `%01111100 xxxxxxxx`   | keep   | RAM Mapper page 0             | RW |
+| `#7DXX`           | `%01111101 xxxxxxxx`   | keep   | RAM Mapper page 1             | RW |
+| `#7EXX`           | `%01111110 xxxxxxxx`   | keep   | RAM Mapper page 2             | RW |
+| `#7FXX`           | `%01111111 xxxxxxxx`   | keep   | RAM Mapper page 3 / Gate Array| RW |
+| `#BCXX`–`#BFXX`   | —                      | keep   | CRTC 6845                     | —  |
+| `#DFXX`           | `%11011111 xxxxxxxx`   | keep   | Upper ROM (bank 3 = Bootmenu) | W  |
+| `#EEXX`           | `%11101110 xxxxxxxx`   | modify | 8251 USART Data (RS232/Mouse) | RW |
+| `#EFXX`           | `%11101111 xxxxxxxx`   | modify | 8251 USART Control/Status     | RW |
+| `#F4XX`–`#F7XX`   | —                      | keep   | PPI 8255                      | —  |
+| `#FA7E`           | `%11111010 01111110`   | keep   | Floppy Motor Control          | W  |
+| `#FABF`           | `%11111010 10111111`   | modify | EXTPORT                       | W  |
+| `#FB7E` / `#FB7F` | —                      | keep   | 765 FDC                       | —  |
 
 ## Конфликты: где Aleste ломает совместимость
 
 Вот тут важно. Три группы портов, которые в CPC работали,
 а в Aleste — нет.
 
-| I/O     | Decoded as           | Status   | Порт                         | RW |
-|---------|----------------------|----------|------------------------------|----|
-| `#EFXX` | `%xxx0xxxx xxxxxxxx` | reserved | Printer Port (CPC)           | W  |
-| `#FADC` | `%xxxxx0x0 xx0xxx00` | reserved | Amstrad SIO/DART port A Data | RW |
-| `#FADD` | `%xxxxx0x0 xx0xxx01` | reserved | SIO/DART port A Control      | RW |
-| `#FADE` | `%xxxxx0x0 xx0xxx10` | reserved | SIO/DART port B Data         | RW |
-| `#FADF` | `%xxxxx0x0 xx0xxx11` | reserved | SIO/DART port B Control      | RW |
-| `#FBDC` | `%xxxxx0x1 xx0xxx00` | reserved | Serial 8253 counter 0        | RW |
-| `#FBDD` | `%xxxxx0x1 xx0xxx01` | reserved | Serial 8253 counter 1        | RW |
-| `#FBDE` | `%xxxxx0x1 xx0xxx10` | reserved | Serial 8253 counter 2        | RW |
-| `#FBDF` | `%xxxxx0x1 xx0xxx11` | reserved | Serial 8253 Mode Select      | W  |
+| I/O     | Decoded as             | Status   | Порт                         | RW |
+|---------|------------------------|----------|------------------------------|----|
+| `#EFXX` | `%11101111 xxxxxxxx`   | reserved | Printer Port (CPC)           | W  |
+| `#FAD0` | `%11111010 11010000`   | reserved | (CPC: свободно; Aleste+MS: VOL_A) | W |
+| `#FAD1` | `%11111010 11010001`   | reserved | (CPC: свободно; Aleste+MS: VOL_B) | W |
+| `#FAD2` | `%11111010 11010010`   | reserved | (CPC: свободно; Aleste+MS: VOL_C) | W |
+| `#FAD3` | `%11111010 11010011`   | reserved | (CPC: свободно; Aleste+MS: VOL_D) | W |
+| `#FADC` | `%11111010 11011100`   | reserved | Amstrad SIO/DART port A Data | RW |
+| `#FADD` | `%11111010 11011101`   | reserved | SIO/DART port A Control      | RW |
+| `#FADE` | `%11111010 11011110`   | reserved | SIO/DART port B Data         | RW |
+| `#FADF` | `%11111010 11011111`   | reserved | SIO/DART port B Control      | RW |
+| `#FBDC` | `%11111011 11011100`   | reserved | (CPC: 8253 counter 0; Aleste+MS: DMAP_D+0) | RW |
+| `#FBDD` | `%11111011 11011101`   | reserved | (CPC: 8253 counter 1; Aleste+MS: DMAP_D+1) | RW |
+| `#FBDE` | `%11111011 11011110`   | reserved | (CPC: 8253 counter 2; Aleste+MS: DMAP_D+2) | RW |
+| `#FBDF` | `%11111011 11011111`   | reserved | (CPC: 8253 Mode Select; Aleste+MS: DMAP_D+3) | W |
 
 Что это значит практически.
 
@@ -100,79 +103,70 @@
 на принтер, попадёт в USART. Это не баг, это аппаратное
 решение. Принтер в Aleste работает иначе (см. ниже).
 
+**Порты `#FAD0`–`#FAD3`.** В CPC эти адреса свободны. В Aleste
+с установленной Magic Sound Board — это регистры громкости
+каналов A/B/C/D (`VOL_A`–`VOL_D` в `mag.txt`). Если платы нет —
+адреса свободны.
+
 **Порты `#FADC`–`#FADF`.** В CPC это микросхема Z80-SIO/DART —
 последовательный интерфейс, который ставился в некоторые модели.
 В Aleste её нет. Программы, которые её используют, работать
 не будут.
 
-**Порты `#FBDC`–`#FBDF`.** Аналогично — таймер 8253, который
-в CPC работал в паре с SIO. В Aleste отсутствует.
+**Порты `#FBDC`–`#FBDF`.** В CPC это таймер 8253, который
+работал в паре с SIO. В Aleste без Magic Sound — отсутствует;
+с Magic Sound — это маппер канала D (`DMAP_D = #FBDC`,
+`#FBDC`–`#FBDF`). То есть если плата установлена, эти порты
+**заняты** и не являются «reserved».
 
 ## Ext Port (порт #FABF)
 
 Отдельный порт, которого не было в CPC. Управляет несколькими
 функциями Aleste.
 
+По `BIOS.MAC` (`EXTPORT EQU 0FDF5H`, содержимое `#FABF`):
+
 | Бит | Status | Действие                    |
 |-----|--------|-----------------------------|
 | 7–6 | —      | Не используется             |
-| 5–4 | modify | PPI Port A usage (см. ниже) |
-| 3   | modify | Force video to black        |
-| 2   | modify | MAPMOD                      |
-| 1   | modify | HIGHX                       |
-| 0   | remove | HIZ                         |
+| 5   | modify | 0 = AY8910, 1 = 512WI1      |
+| 4   | modify | 580WI53 (таймер)            |
+| 3   | modify | MAP Page 0/1 (256K)         |
+| 2   | modify | MAPMOD (0 = Amstrad, 1 = Yamaha) |
+| 1   | modify | HIGHX (0 = norm, 1 = high resolution) |
+| 0   | modify | VRAM Bank 0/1 (64K)         |
 
-HIZ - использовался для чересстрочной развертки. И может быть аннулирован так как не имеет ценности.
+### Бит 5: AY8910 / 512WI1
 
-### Биты 5–4: что подключено к порту A PPI
+0 = AY-3-8910 (стандартный PSG), 1 = 512WI1 (альтернативный
+звуковой чип). По умолчанию 0.
 
-Этот переключатель определяет, какое устройство висит на порту A
-микросхемы 8255.
+### Бит 4: 580WI53
 
-| Значение | Что подключено                      |
-|----------|-------------------------------------|
-| 0        | PSG (AY-3-8910), как в CPC          |
-| 1        | Зарезервировано (PSG и 8253 вместе) |
-| 2        | RTC (часы реального времени)        |
-| 3        | 8253 (таймер)                       |
+Выбор таймера 580WI53 (используется для RTC, мыши, RS-232).
+По умолчанию 0.
 
-Когда выбрано 0 — порт A работает как обычно, через него
-идёт звук и клавиатура. Когда 2 — через порт A идёт обмен
-с часами. Когда 3 — с таймером.
+### Бит 3: MAP Page
 
-Управление RTC идёт через комбинацию битов порта C PPI:
-
-- Бит 2 порта C — DS (Data Strobe)
-- Бит 1 порта C — AS (Address Strobe)
-- Бит 0 порта C — R/W
-
-Комбинации:
-
-- 2 — записать адрес
-- 4 — записать данные
-- 5 — прочитать данные
-
-### Бит 3: принудительное затемнение видео
-
-Если установить — видео выключается, экран чёрный. Полезно
-для пауз или для экономии энергии (шутка, но всё же).
+Выбор страницы памяти (0 или 1) для 256K-расширения. Влияет
+на то, какой банк памяти виден в странице. Подробности —
+в разделе про память.
 
 ### Бит 2: MAPMOD
 
-Главный переключатель. 0 — CPC-режим, 1 — Aleste-режим.
-Подробности — в разделе про память.
+Главный переключатель. 0 — CPC-режим (Amstrad), 1 — Aleste-режим
+(Yamaha-маппер). Подробности — в разделе про память.
 
 ### Бит 1: HIGHX
 
-Включает режимы высокого разрешения. Влияет на частоты
-и на декодирование видеoadреса. Нужен, если хочешь получить
-режимы Aleste с повышенной цветностью.
+Включает режимы высокого разрешения (32 КБ видеобуфер).
+Влияет на частоты и на декодирование видеоадреса. Подробности —
+в разделе про экран.
 
-### Бит 0: HIZ
+### Бит 0: VRAM Bank
 
-Не до конца понятен. Управляет декодированием видеоадреса.
-В оригинальной документации помечен как «не полностью
-изучен». Не трогай, если не знаешь, что делаешь.
+Выбор видеобанка (0 или 1) для 64K VRAM. Используется для
+двойной буферизации и скроллинга.
 
 ## Multiport (порт #7FXX)
 
@@ -211,20 +205,20 @@ HIZ - использовался для чересстрочной развер�
 | 7   | Всегда 1                 |
 | 6   | Всегда 0                 |
 | 5   | CAPS LED                 |
-| 4   | RUS LED                  |
-| 3   | Upper ROM enable/disable |
-| 2   | Lower ROM enable/disable |
+| 4   | RUS LED (Aleste) / Interrupt reset (CPC) |
+| 3   | Upper ROM enable/disable (1 = disable, 0 = enable) |
+| 2   | Lower ROM enable/disable (1 = disable, 0 = enable) |
 | 1–0 | Mode                     |
 
 Биты 5 и 4 управляют двумя светодиодами: CAPS (заглавные)
 и RUS (русский режим). Это фишка Aleste, в CPC такого нет.
 
-**Важно:** в CPC регистр 2 Gate Array имеет ещё один
-бит, который управляет генерацией прерываний
-(Interrupt generation control). В Aleste этот бит
-тоже присутствует, но его расположение в регистре
-может отличаться от CPC. Подробности — в разделе
-про прерывания.
+**Важно:** в классическом CPC бит 4 RMR — **Interrupt reset**
+(сброс счётчика HSYNC). В Aleste бит 4 RMR — **RUS LED**
+(светодиод русского режима), а сброс счётчика HSYNC происходит
+**только по VSYNC**. Это различие важно: программа, которая
+рассчитывает на программный сброс счётчика через RMR, на
+Aleste работать не будет.
 
 ### Регистр 3: RAM banking
 
@@ -296,11 +290,30 @@ CPC6128. В Aleste-режиме (MAPMOD = 1) используется
 **Читай Status.** Если порт помечен как reserved — не жди,
 что он будет работать как в CPC. Его там просто нет.
 
-**Помни про бит прерываний в RMR.** В CPC он есть,
-в Aleste — тоже, но расположение может отличаться.
+**Помни про бит 4 RMR.** В CPC это Interrupt reset; в Aleste —
+RUS LED. Сброс счётчика HSYNC на Aleste — только по VSYNC.
 См. раздел про прерывания.
-
 
 ## Что дальше
 
-С клавиатурой разобрались. Следующий раздел — [про порты ввода вывода в целом.](./06-ports.md)
+С портами разобрались. Следующий раздел — [про дисковод:
+контроллер 765 FDC, порты, чтение сектора.](./07-keyboard.md)
+
+---
+
+## Сводка правок
+
+| # | Было | Стало | Причина |
+|---|------|-------|---------|
+| 1 | «Decoded as» — 8-битные шаблоны (`%01xxxxxx`, `%x0xxxx00`, …) | 16-битные шаблоны (`%01111111 xxxxxxxx`, `%10111100 xxxxxxxx`, …) | 8-битные шаблоны не соответствуют 16-битному адресу |
+| 2 | `#FABF` бит 0 = «HIZ» | бит 0 = VRAM Bank | По `BIOS.MAC`: D0 = VRAM Bank |
+| 3 | `#FABF` бит 3 = «Force video to black» | бит 3 = MAP Page 0/1 | По `BIOS.MAC`: D3 = MAP Page |
+| 4 | `#FABF` бит 4 = «PPI Port A usage» | бит 4 = 580WI53 | По `BIOS.MAC`: D4 = 580WI53 |
+| 5 | `#FABF` бит 5 = «PPI Port A usage» | бит 5 = AY8910/512WI1 | По `BIOS.MAC`: D5 = AY/512WI1 |
+| 6 | «Биты 5–4 = PPI Port A usage» | Два независимых бита (D4, D5) | По `BIOS.MAC`: D4 и D5 независимы |
+| 7 | Не было `#FAD0`–`#FAD3` | Добавлены (VOL_A..D Magic Sound) | В `mag.txt`: `VOL_A..D = #FAD0..#FAD3` |
+| 8 | `#FBDC`–`#FBDF` = «reserved (8253)» | «reserved (8253); Aleste+MS: DMAP_D+0..3» | В `mag.txt`: `DMAP_D = #FBDC` |
+| 9 | «В CPC RMR имеет ещё один бит для прерываний; в Aleste расположение может отличаться» | «В CPC бит 4 = Interrupt reset; в Aleste бит 4 = RUS LED» | Факт (CPC vs Aleste) |
+| 10 | «Бит 3 — Upper ROM enable/disable» (без уточнения) | «1 = disable, 0 = enable» | По `BIOS.MAC` |
+| 11 | «Что дальше» → `./06-ports.md` (сам на себя) | → `./07-disk.md` | Ошибка ссылки |
+

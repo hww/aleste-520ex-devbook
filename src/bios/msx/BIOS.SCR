@@ -1,0 +1,2709 @@
+WIDTH80H	EQU	WIDTH40
+;
+;========================== Инициализация экрана ===============================
+;
+SCR_INIT:	LD	HL,SCRINITAB
+		LD	DE,WUP
+		LD	BC,SCRINIEND-SCRINITAB+1
+		LDIR
+;
+		XOR	A
+		LD	BC,0300H
+		JP	SET_SCRMOD
+;
+SCRINITAB:	DB	0	; Верхний край окна
+		DB	0	; Левый край окна
+		DB	18H	; Нижний край окна
+		DB	4FH	; Правый край окна
+		DB	0	; Y координата курсора
+		DB	0	; X координата курсора
+		DB	8	; Страница PGT
+		DW	ALEST	; Адрес PGT
+		DB	0	; Режим экрана
+		DB	0	; Вид шрифта
+		DB	0	; Режим вывода символов
+		DW	0	; Адрес начала экрана
+		DB	0	; Номер страницы для вывода
+		DB	01	; Цвет символов
+		DB	00	; Цвет фона
+		DB	00	; Цвет бордюра
+		DS	8,0	; Буфер PGT
+		DS	20H,0	; Буфер вывода на экран
+		DW	0	; Временная позиция курсора
+		DS	8,0	; Буфер ESC последовательности
+		DW	ESCBUF	; Указатель на ESCBUF
+		DB	0	; Счетчик ESC последовательности
+SCRINIEND:	DB	0	; Флаг вывода символов 0...1FH
+;
+;============================ Гашение экрана ===================================
+;
+DIS_SCR:	DI
+		PUSH	BC
+                LD	A,(EXTPORT)
+		RES	3,A
+		LD	(EXTPORT),A
+		LD	BC,0FABFH
+		OUT	(C),A
+		POP	BC		
+		EI		
+		RET
+;
+ENA_SCR:	DI
+		PUSH	BC
+		LD	A,(EXTPORT)
+		SET	3,A
+		LD	(EXTPORT),A
+		LD	BC,0FABFH
+		OUT	(C),A
+		POP	BC
+		EI
+		RET		
+;
+MESSAGE1:	LD	(CSRY),HL
+MESSAGE11:	LD	A,(DE)
+		AND	A
+		RET	Z
+		CALL	WR_SYMBOL1
+		INC	H
+		LD	(CSRY),HL
+		INC	DE
+		JR	MESSAGE11
+;
+WR_SYMBOL:	LD	(CSRY),HL
+WR_SYMBOL1:	PUSH	HL
+		PUSH	DE
+		PUSH	BC
+		PUSH	AF
+		CALL	SYMBOL2
+		POP	AF
+		POP	BC
+		POP	DE
+		POP	HL
+		RET
+;
+INVERT:		DI
+		CALL	VRAMADR0
+		PUSH	BC
+		LD	BC,7DC0H
+		OUT	(C),C
+		POP	BC
+
+		LD	E,8
+INV00:		PUSH	HL
+		LD	C,8
+INV01:		LD	A,(HL)
+		CPL
+		LD	(HL),A
+		LD	A,H
+		ADD	A,E
+		LD	H,A
+		DEC	C
+		JP	NZ,INV01
+		POP	HL
+		INC	HL
+		DJNZ	INV00
+
+		LD	BC,7DCFH
+		OUT	(C),C
+		EI
+		RET
+;
+FMESSXY:	DI
+		LD	(CSRY),HL
+		PUSH	BC	;<
+		CALL	VRAMADR0
+;		PUSH	DE	;<<
+;		LD	E,H
+;		LD	D,0
+;		LD	H,D
+;		PUSH	DE	;<<<   	;DE=X
+;		LD	E,L		;DE=Y
+;		ADD	HL,HL		;*2
+;		ADD	HL,HL		;*4
+;		ADD	HL,DE		;*5
+;		ADD	HL,HL		;*10
+;		ADD	HL,HL		;*20
+;		ADD	HL,HL		;*40
+;		ADD	HL,HL		;*80
+;		POP	DE	;>>>
+;		ADD	HL,DE		;Y*80+X
+;		LD	A,H
+;		AND	07
+; 		OR	40H
+;		LD	H,A
+;		POP	DE	;>>
+;
+MESSX0:		LD	A,(DE)
+		AND	A
+		JP	Z,SPM_EXIT
+		PUSH	DE	;<<
+		PUSH	HL	;<<<
+;
+SYMBX0:		LD	L,A
+		LD	H,00
+		ADD	HL,HL
+		ADD	HL,HL
+		ADD	HL,HL
+		LD	DE,ALEST
+		ADD	HL,DE
+		LD	DE,BUFSYM1	; Буфер для раскрутки из PGT (8 байт)
+		LD	BC,8
+		LDIR
+		LD	A,(MODES)	; Режим вывода
+                AND     A
+                JR      Z,SYMBX0_1
+		CALL	NEGAT
+SYMBX0_1:
+		LD	BC,7DC0H
+		OUT	(C),C
+
+		POP	HL	;>>>
+;
+		LD	DE,BUFSYM1
+		LD	B,8
+		PUSH	HL	;<<<
+		LD	A,(DE)
+		LD	(HL),A
+		INC	DE
+		LD	A,H
+		ADD	A,B
+		LD	H,A
+		LD	A,(DE)
+		LD	(HL),A
+		INC	DE
+		LD	A,H
+		ADD	A,B
+		LD	H,A
+		LD	A,(DE)
+		LD	(HL),A
+		INC	DE
+		LD	A,H
+		ADD	A,B
+		LD	H,A
+		LD	A,(DE)
+		LD	(HL),A
+		INC	DE
+		LD	A,H
+		ADD	A,B
+		LD	H,A
+		LD	A,(DE)
+		LD	(HL),A
+		INC	DE
+		LD	A,H
+		ADD	A,B
+		LD	H,A
+		LD	A,(DE)
+		LD	(HL),A
+		INC	DE
+		LD	A,H
+		ADD	A,B
+		LD	H,A
+		LD	A,(DE)
+		LD	(HL),A
+		INC	DE
+		LD	A,H
+		ADD	A,B
+		LD	H,A
+		LD	A,(DE)
+		LD	(HL),A
+		INC	DE
+		LD	A,H
+		ADD	A,B
+		LD	H,A
+		LD	BC,7DCFH
+		OUT	(C),C
+		POP	HL	;>>>
+		POP	DE	;>>
+		INC	HL
+
+;		INC	H
+;		LD	(CSRY),HL
+
+		INC	DE
+		JR	MESSX0
+;
+SPM_EXIT:	POP	BC	;>
+		EI
+		RET
+;================ Выводит символ в текущую позицию из [A] ======================
+;
+SYMBOL2:	LD	L,A
+		LD	H,00
+		ADD	HL,HL
+		ADD	HL,HL
+		ADD	HL,HL
+		LD	DE,(PGTADR)
+		ADD	HL,DE
+		LD	A,H
+		AND	3FH
+		OR	40H
+		LD	H,A
+		LD	A,(PGTPAGE)
+		LD	B,7DH
+		IN	C,(C)
+		OR	0C0H
+		OUT	(C),A
+		PUSH	BC
+		LD	DE,BUFSYM1	; Буфер для раскрутки из PGT (8 байт)
+		LD	BC,8
+		LDIR
+		POP	BC
+		OUT	(C),C
+		LD	A,(MODES)	; Режим вывода
+                AND     A
+                JR      Z,SYMBOL2_1
+		LD	C,A
+		BIT	2,C
+		CALL	NZ,BOLD
+		BIT	3,C
+		CALL	NZ,SETCH
+		BIT	0,C
+		CALL	NZ,DLINE
+		BIT	1,C
+		CALL	NZ,NEGAT
+SYMBOL2_1:	CALL	SET_VRAM
+		JP	WIDTH
+;
+BOLD:		LD	HL,BUFSYM1
+		LD	B,8
+BOLD1:		LD	A,(HL)
+		RRCA
+		OR	(HL)
+		LD	(HL),A
+		INC	HL
+		DJNZ	BOLD1
+		RET
+;
+SETCH:		LD	HL,BUFSYM1
+		LD	B,8
+		LD	D,0AAH
+SETCH1:		LD	A,(HL)
+		AND	D
+		LD	(HL),A
+		INC	HL
+		RRC	D
+		DJNZ	SETCH1
+		RET
+;
+DLINE:		LD	HL,BUFSYM1+7
+		LD	(HL),0FFH
+		RET
+;
+NEGAT:		LD	HL,BUFSYM1
+		LD	B,8
+NEGAT1:		LD	A,(HL)
+		CPL
+		LD	(HL),A
+		INC	HL
+		DJNZ	NEGAT1
+		RET
+;
+WYWOD_N:	LD	B,8
+		PUSH	HL
+		LD	A,(DE)
+		LD	(HL),A
+		INC	DE
+		LD	A,H
+		ADD	A,B
+		LD	H,A
+		LD	A,(DE)
+		LD	(HL),A
+		INC	DE
+		LD	A,H
+		ADD	A,B
+		LD	H,A
+		LD	A,(DE)
+		LD	(HL),A
+		INC	DE
+		LD	A,H
+		ADD	A,B
+		LD	H,A
+		LD	A,(DE)
+		LD	(HL),A
+		INC	DE
+		LD	A,H
+		ADD	A,B
+		LD	H,A
+		LD	A,(DE)
+		LD	(HL),A
+		INC	DE
+		LD	A,H
+		ADD	A,B
+		LD	H,A
+		LD	A,(DE)
+		LD	(HL),A
+		INC	DE
+		LD	A,H
+		ADD	A,B
+		LD	H,A
+		LD	A,(DE)
+		LD	(HL),A
+		INC	DE
+		LD	A,H
+		ADD	A,B
+		LD	H,A
+		LD	A,(DE)
+		LD	(HL),A
+		INC	DE
+		LD	A,H
+		ADD	A,B
+		LD	H,A
+		POP	HL
+		RET
+;
+WYWOD_AND:	LD	B,8
+		PUSH	HL
+WYWOD2:		LD	A,(DE)
+		AND	(HL)
+		LD	(HL),A
+		INC	DE
+		LD	A,H
+		ADD	A,8
+		LD	H,A
+		DJNZ	WYWOD2
+		POP	HL
+		RET
+;
+WYWOD_OR:	LD	B,8
+		PUSH	HL
+WYWOD3:		LD	A,(DE)
+		OR	(HL)
+		LD	(HL),A
+		INC	DE
+		LD	A,H
+		ADD	A,8
+		LD	H,A
+		DJNZ	WYWOD3
+		POP	HL
+		RET
+;
+WYWOD_XOR:	LD	B,8
+		PUSH	HL
+WYWOD4:		LD	A,(DE)
+		XOR	(HL)
+		LD	(HL),A
+		INC	DE
+		LD	A,H
+		ADD	A,8
+		LD	H,A
+		DJNZ	WYWOD4
+		POP	HL
+		RET
+;
+WYWODH_N:	LD	B,4
+		PUSH	HL
+WYWOD5:		LD	A,(DE)
+		LD	(HL),A
+		INC	DE
+		SET	7,H
+		RES	6,H
+		LD	A,(DE)
+		LD	(HL),A
+		INC	DE
+		RES	7,H
+		SET	6,H
+		LD	A,H
+		ADD	A,10H
+		LD	H,A
+		DJNZ	WYWOD5
+		POP	HL
+		RET
+;
+WYWODH_AND:	LD	B,4
+		PUSH	HL
+WYWOD6:		LD	A,(DE)
+		AND	(HL)
+		LD	(HL),A
+		INC	DE
+		LD	A,H
+		ADD	A,40H
+		LD	H,A
+		LD	A,(DE)
+		AND	(HL)
+		LD	(HL),A
+		INC	DE
+		LD	A,H
+		AND	3FH
+		OR	40H
+		ADD	A,10H
+		LD	H,A
+		DJNZ	WYWOD6
+		POP	HL
+		RET
+;
+WYWODH_OR:	LD	B,4
+		PUSH	HL
+WYWOD7:		LD	A,(DE)
+		OR	(HL)
+		LD	(HL),A
+		INC	DE
+		LD	A,H
+		ADD	A,40H
+		LD	H,A
+		LD	A,(DE)
+		OR	(HL)
+		LD	(HL),A
+		INC	DE
+		LD	A,H
+		AND	3FH
+		OR	40H
+		ADD	A,10H
+		LD	H,A
+		DJNZ	WYWOD7
+		POP	HL
+		RET
+;
+WYWODH_XOR:	LD	B,4
+		PUSH	HL
+WYWOD8:		LD	A,(DE)
+		XOR	(HL)
+		LD	(HL),A
+		INC	DE
+		LD	A,H
+		ADD	A,40H
+		LD	H,A
+		LD	A,(DE)
+		XOR	(HL)
+		LD	(HL),A
+		INC	DE
+		LD	A,H
+		AND	3FH
+		OR	40H
+		ADD	A,10H
+		LD	H,A
+		DJNZ	WYWOD8
+		POP	HL
+		RET
+;
+WIDTH80:	LD	HL,(CSRY)
+		CALL	VRAMADR
+		LD	DE,BUFSYM1
+		CALL	WYWOD
+		JP	RES_VRAM
+;
+WIDTH40:	LD	DE,BUFSYM2	; Буфер раскрутки для вывода (32 байта)
+		CALL	SYM0
+		CALL	SYM0
+		LD	HL,(CSRY)
+		CALL	VRAMADR
+		LD	DE,BUFSYM2
+		CALL	WYWOD
+		INC	HL
+		CALL	WYWOD
+		JP	RES_VRAM
+;
+WIDTH40H:	LD	DE,BUFSYM2	; Буфер раскрутки для вывода (32 байта)
+		CALL	SYM0H
+		CALL	SYM0H
+		CALL	SYM0H
+		CALL	SYM0H
+		LD	HL,(CSRY)
+		CALL	VRAMADR
+		LD	DE,BUFSYM2
+		CALL	WYWOD
+		INC	HL
+		CALL	WYWOD
+		INC	HL
+		CALL	WYWOD
+		INC	HL
+		CALL	WYWOD
+		JP	RES_VRAM
+;	
+;	 Раскрутка для вывода на экран по точкам 4 цвета
+;
+SYM0:		LD	HL,BUFSYM1
+		LD	B,8
+SYM01:		PUSH	BC
+		CALL	SYM1
+		POP	BC
+		DJNZ	SYM01
+		RET
+;
+SYM1:		LD	A,(PAPER)
+		LD	B,A
+		LD	A,(INK)
+		XOR	B
+		AND	88H
+		LD	C,A
+		LD	A,B
+		LD	B,4
+SYM2:		RL	(HL)
+		JP	NC,SYM3
+		XOR	C
+SYM3:		RRC	C
+		DJNZ	SYM2
+		LD	(DE),A
+		INC	DE
+		INC	HL
+		RET
+;	
+; Раскрутка для вывода на экран 16 цветов
+;
+SYM0H:		LD	HL,BUFSYM1
+		LD	B,8
+SYM0H1:		PUSH	BC
+		CALL	SYM1H
+		POP	BC
+		DJNZ	SYM0H1
+		RET
+;
+SYM1H:		LD	A,(PAPER)
+		LD	B,A
+		LD	A,(INK)
+		XOR	B
+		AND	0AAH
+		LD	C,A
+		LD	A,B
+		RL	(HL)
+		JR	NC,SYM2H
+		XOR	C
+SYM2H:		RRC	C
+		RL	(HL)
+		JR	NC,SYM3H
+		XOR	C
+SYM3H:		RRC	C
+		LD	(DE),A
+		INC	DE
+		INC	HL
+		RET
+;
+;================ Преобразует координаты курсора в адрес VRAM ==================
+;
+;Вход:	[HL]= позиция курсора
+;Выход:	[HL]= адрес VRAM
+;
+VRAMADR0:	PUSH	DE
+		LD	E,H
+		LD	D,0
+		LD	H,D
+		PUSH	DE
+		LD	E,L
+		ADD	HL,HL
+		ADD	HL,HL
+		ADD	HL,DE
+		ADD	HL,HL
+		ADD	HL,HL
+		ADD	HL,HL
+		ADD	HL,HL
+		POP	DE
+		ADD	HL,DE
+		LD	DE,(BASE)
+		ADD	HL,DE
+		LD	A,H
+		AND	07
+ 		OR	40H
+		LD	H,A
+		POP	DE
+		RET
+;
+VRAMADR1:	PUSH	DE
+		LD	E,H
+		LD	D,0
+		LD	H,D
+		PUSH	DE
+		LD	E,L
+		ADD	HL,HL
+		ADD	HL,HL
+		ADD	HL,DE
+		ADD	HL,HL
+		ADD	HL,HL
+		ADD	HL,HL
+		ADD	HL,HL
+		POP	DE
+		ADD	HL,DE
+		ADD	HL,DE
+		LD	DE,(BASE)
+		ADD	HL,DE
+		LD	A,H
+		AND	07
+ 		OR	40H
+		LD	H,A
+		POP	DE
+		RET
+;
+VRAMADR2:	PUSH	DE
+		LD	E,H
+		LD	D,0
+		LD	H,D
+		PUSH	DE
+		LD	E,L
+		ADD	HL,HL
+		ADD	HL,HL
+		ADD	HL,DE
+		ADD	HL,HL
+		ADD	HL,HL
+		ADD	HL,HL
+		ADD	HL,HL
+		ADD	HL,HL
+		POP	DE
+		ADD	HL,DE
+		ADD	HL,DE
+		LD	DE,(BASE)
+		ADD	HL,DE
+		LD	A,H
+		AND	0FH
+ 		OR	40H
+		LD	H,A
+		POP	DE
+		RET
+;
+VRAMADR3:	PUSH	DE
+		LD	E,H
+		LD	D,0
+		LD	H,D
+		PUSH	DE
+		LD	E,L
+		ADD	HL,HL
+		ADD	HL,HL
+		ADD	HL,DE
+		ADD	HL,HL
+		ADD	HL,HL
+		ADD	HL,HL
+		ADD	HL,HL
+		ADD	HL,HL
+		POP	DE
+		EX	DE,HL
+		ADD	HL,HL
+		ADD	HL,HL
+		ADD	HL,DE
+		LD	DE,(BASE)
+		ADD	HL,DE
+		LD	A,H
+		AND	0FH
+ 		OR	40H
+		LD	H,A
+		POP	DE
+		RET
+;
+;======= Делает ролик экрана: [B]=00 - ролик вниз, [B]=FF - ролик вверх ========
+;
+SCROLL:		LD	HL,(WUP)
+		LD	DE,0
+		CALL	CPHLDE
+		JP	NZ,L_SCROLL1
+		LD	HL,(WDOWN)
+		LD	DE,4F18H
+		LD	A,(SCRMOD)
+		RRA
+		JR	NC,L_SCROLL2
+		LD	D,27H
+L_SCROLL2:	CALL	CPHLDE
+		JP	NZ,L_SCROLL1
+;	 Аппаратный ролик
+		LD	A,(SCRMOD)
+		AND	2
+		JR	NZ,H_ROLL
+		PUSH	BC
+		LD	DE,0FFD0H
+		LD	C,48
+		CALL	L_ROLLU
+		CALL	WAIT
+		POP	BC
+		LD	A,B
+		OR	A
+		JR	Z,L_ROLLD
+		LD	DE,0050H
+		CALL	SET_OFF
+		LD	DE,0FFB0H
+		LD	C,32
+L_ROLLU:	LD	HL,(BASE)
+		ADD	HL,DE
+		LD	A,H
+		AND	07
+		ADD	A,40H
+		LD	H,A
+		LD	A,(SCRMOD)
+		AND	A
+		JP	Z,ROLSTR_0
+		JP	ROLSTR_00
+;
+L_ROLLD:	LD	DE,0FFB0H
+		CALL	SET_OFF
+		LD	DE,0
+		LD	C,32
+		JR	L_ROLLU
+;
+H_ROLL:		PUSH	BC
+		LD	DE,0FFA0H
+		LD	C,48
+		CALL	H_ROLLU
+		CALL	WAIT
+		POP	BC
+		LD	A,B
+		OR	A
+		JR	Z,H_ROLLD
+		LD	DE,00A0H
+		CALL	SET_OFF
+		LD	DE,0FF60H
+		LD	C,32
+H_ROLLU:	LD	HL,(BASE)
+		ADD	HL,DE
+		LD	A,H
+		AND	0FH
+		ADD	A,40H
+		LD	H,A
+		JP	ROLSTR_2
+;
+H_ROLLD:	LD	DE,0FF60H
+		CALL	SET_OFF
+		LD	DE,0
+		LD	C,32
+		JR	H_ROLLU
+;
+SET_OFF:	LD	HL,(BASE)
+		ADD	HL,DE
+		JP	SET_BASE
+;
+;  Программный ролик
+;
+L_SCROLL1:	CALL	L_SCROL1
+		JP	ROLSTR
+;
+L_SCROL1:	LD	A,B
+		OR	A
+		JR	Z,ROLDOWN
+		CALL	GET_SIZE
+ROLUP2:		CALL	VRAMADR
+		DEC	B
+		RET	Z
+		EX	DE,HL
+		LD	A,(SCRMOD)
+		AND	2
+		JR	NZ,H_ROLUP
+		LD	HL,80
+		ADD	HL,DE
+		LD	A,H
+		AND	07
+		OR	40H
+		LD	H,A
+		CALL	WAIT
+		CALL	SET_VRAM
+ROLUP1:		PUSH	BC
+		CALL	ROLL3
+		LD	BC,80
+		ADD	HL,BC
+		LD	A,H
+		AND	07
+		OR	40H
+		LD	H,A
+		EX	DE,HL
+		ADD	HL,BC
+		LD	A,H
+		AND	07
+		OR	40H
+		LD	H,A
+		EX	DE,HL
+		POP	BC
+		DJNZ	ROLUP1
+ 		EX	DE,HL
+		JP	RES_VRAM
+;
+H_ROLUP:	LD	HL,160
+		ADD	HL,DE
+		LD	A,H
+		AND	0FH
+		OR	40H
+		LD	H,A
+		CALL	WAIT
+		CALL	SET_VRAM
+H_ROLUP1:	PUSH	BC
+		CALL	ROLL3
+		LD	BC,160
+		ADD	HL,BC
+		LD	A,H
+		AND	0FH
+		OR	40H
+		LD	H,A
+		EX	DE,HL
+		ADD	HL,BC
+		LD	A,H
+		AND	0FH
+		OR	40H
+		LD	H,A
+		EX	DE,HL
+		POP	BC
+		DJNZ	H_ROLUP1
+ 		EX	DE,HL
+		JP	RES_VRAM
+;
+ROLDOWN:	CALL	GET_SIZE
+ROLDOW1:	LD	L,E
+		CALL	VRAMADR
+		DEC	B
+		RET	Z
+		PUSH	HL
+		LD	A,(SCRMOD)
+		AND	2
+		JR	NZ,H_ROLDOW
+		LD	DE,0FFB0H
+		ADD	HL,DE
+		LD	A,H
+		AND	07
+		OR	40H
+		LD	H,A
+		POP	DE
+		CALL	WAIT
+		CALL	SET_VRAM
+ROLDOW2:	PUSH	BC
+		CALL	ROLL3
+		LD	BC,0FFB0H
+		ADD	HL,BC
+		LD	A,H
+		AND	07
+		OR	40H
+		LD	H,A
+		EX	DE,HL
+		ADD	HL,BC
+		LD	A,H
+		AND	07
+		OR	40H
+		LD	H,A
+		EX	DE,HL
+		POP	BC
+		DJNZ	ROLDOW2
+		EX	DE,HL
+		JP	RES_VRAM
+;
+H_ROLDOW:	LD	DE,0FF60H
+		ADD	HL,DE
+		LD	A,H
+		AND	0FH
+		OR	40H
+		LD	H,A
+		POP	DE
+		CALL	WAIT
+		CALL	SET_VRAM
+H_ROLDOW2:	PUSH	BC
+		CALL	ROLL3
+		LD	BC,0FF60H
+		ADD	HL,BC
+		LD	A,H
+		AND	0FH
+		OR	40H
+		LD	H,A
+		EX	DE,HL
+		ADD	HL,BC
+		LD	A,H
+		AND	0FH
+		OR	40H
+		LD	H,A
+		EX	DE,HL
+		POP	BC
+		DJNZ	H_ROLDOW2
+		EX	DE,HL
+		JP	RES_VRAM
+;
+; Вычисляет адрес следующего байта
+;
+L_NEXBYTE:	INC	L
+		RET	NZ
+		INC	H
+		LD	A,H
+		AND	07
+		RET	NZ
+		LD	A,H
+		SUB	08
+		LD	H,A
+		RET
+;
+H_NEXBYTE:	INC	L
+		RET	NZ
+		INC	H
+		LD	A,H
+		AND	0FH
+		RET	NZ
+		LD	A,H
+		SUB	10H
+		LD	H,A
+		RET
+;
+ROLL2:		PUSH	HL
+		PUSH	DE
+		PUSH	BC
+		LD	B,0
+		LDIR
+		POP	BC
+		POP	DE
+		POP	HL
+		RET
+;
+;ROLL3:	Пересылка строки символов из [HL] в [DE] длиной [C] Lo resolution
+;
+ROLL3_1:	RLC	C
+ROLL3_0:	PUSH	DE
+		PUSH	HL
+		LD	B,0
+		ADD	HL,BC
+		LD	A,H
+		AND	3FH
+		CP	8
+		JR	NC,ROLL_31
+		XOR	A
+		SBC	HL,BC
+		EX	DE,HL
+		ADD	HL,BC
+		LD	A,H
+		AND	3FH
+		CP	8
+		JR	NC,ROLL_30
+		XOR	A
+		SBC	HL,BC
+		EX	DE,HL
+		LD	B,8
+ROLL31:		CALL	ROLL2
+		LD	A,H
+		ADD	A,8
+		LD	H,A
+		LD	A,D
+		ADD	A,8
+		LD	D,A
+		DJNZ	ROLL31
+		POP	HL
+		POP	DE
+		RET
+;
+ROLL_30:	XOR	A
+		SBC	HL,BC
+		EX	DE,HL
+		JR	ROLL_33
+;
+ROLL_31:	XOR	A
+		SBC	HL,BC
+ROLL_33:	LD	B,8
+ROLL_32:	PUSH	HL
+		PUSH	DE
+		PUSH	BC
+		LD	B,0
+ROLL2_1:	LD	A,(HL)
+		LD	(DE),A
+		CALL	L_NEXBYTE
+		EX	DE,HL
+		CALL	L_NEXBYTE
+		EX	DE,HL
+		DEC	BC
+		LD	A,B
+		OR	C
+		JP	NZ,ROLL2_1
+		POP	BC
+		POP	DE
+		POP	HL
+		LD	A,H
+		ADD	A,8
+		LD	H,A
+		LD	A,D
+		ADD	A,8
+		LD	D,A
+		DJNZ	ROLL_32
+		POP	HL
+		POP	DE
+		RET
+;
+;ROLL3:	Пересылка строки символов из [HL] в [DE] длиной [C] Hi resolution
+;
+ROLL3_3:	RLC	C
+ROLL3_2:	RLC	C
+		PUSH	DE
+		PUSH	HL
+		LD	B,0
+		ADD	HL,BC
+		LD	A,H
+		AND	3FH
+		CP	10H
+		JR	NC,ROLL_41
+		XOR	A
+		SBC	HL,BC
+		EX	DE,HL
+		ADD	HL,BC
+		LD	A,H
+		AND	3FH
+		CP	10H
+		JR	NC,ROLL_40
+		XOR	A
+		SBC	HL,BC
+		EX	DE,HL
+		LD	B,4
+ROLL32:		CALL	ROLL2
+		LD	A,H
+		ADD	A,40H
+		LD	H,A
+		LD	A,D
+		ADD	A,40H
+		LD	D,A
+		CALL	ROLL2
+		LD	A,H
+		AND	3FH
+		OR	40H
+		ADD	A,10H
+		LD	H,A
+		LD	A,D
+		AND	3FH
+		OR	40H
+		ADD	A,10H
+		LD	D,A
+		DJNZ	ROLL32
+		POP	HL
+		POP	DE
+		RET
+;
+ROLL_40:	XOR	A
+		SBC	HL,BC
+		EX	DE,HL
+		JR	ROLL_43
+;
+ROLL_41:	XOR	A
+		SBC	HL,BC
+ROLL_43:	LD	B,4
+ROLL_42:	CALL	ROLL2_2
+		LD	A,H
+		ADD	A,40H
+		LD	H,A
+		LD	A,D
+		ADD	A,40H
+		LD	D,A
+		CALL	ROLL2_2
+		LD	A,H
+		AND	3FH
+		OR	40H
+		ADD	A,10H
+		LD	H,A
+		LD	A,D
+		AND	3FH
+		OR	40H
+		ADD	A,10H
+		LD	D,A
+		DJNZ	ROLL_42
+		POP	HL
+		POP	DE
+		RET
+;
+ROLL2_2:	PUSH	HL
+		PUSH	DE
+		PUSH	BC
+		LD	B,0
+ROLL2_3:	LD	A,(HL)
+		LD	(DE),A
+		CALL	H_NEXBYTE
+		EX	DE,HL
+		CALL	H_NEXBYTE
+		EX	DE,HL
+		DEC	BC
+		LD	A,B
+		OR	C
+		JP	NZ,ROLL2_3
+		POP	BC
+		POP	DE
+		POP	HL
+		RET
+;
+;======= Вывод пустой строки символов [HL]=адрес VRAM ,[C]=число символов ======
+;
+ROLSTR_0:	CALL	SET_VRAM
+		LD	D,0
+		JR	ROLST0
+;
+ROLSTR_1:	RLC	C
+ROLSTR_00:	CALL	SET_VRAM
+		LD	A,(PAPER)
+		LD	D,A
+ROLST0:		LD	B,8
+ROLST1:		PUSH	BC
+		PUSH	HL
+ROLST2:		LD	(HL),D
+		CALL	L_NEXBYTE
+		DEC	C
+		JR	NZ,ROLST2
+		POP	HL
+		LD	A,H
+		ADD	A,8
+		LD	H,A
+		POP	BC
+		DJNZ	ROLST1
+		JP	RES_VRAM
+;
+ROLSTR_3:	RLC	C
+ROLSTR_2:	RLC	C
+		CALL	SET_VRAM
+		LD	A,(PAPER)
+		LD	D,A
+		LD	B,4
+		LD	E,C
+ROLST3:		PUSH	BC
+		PUSH	HL
+		PUSH	HL
+ROLST4:		LD	(HL),D
+		CALL	H_NEXBYTE
+		DEC	C
+		JR	NZ,ROLST4
+		POP	HL
+		LD	A,H
+		ADD	A,40H
+		LD	H,A
+		LD	C,E
+ROLST5:		LD	(HL),D
+		CALL	H_NEXBYTE
+		DEC	C
+		JR	NZ,ROLST5
+		POP	HL
+		LD	A,H
+		ADD	A,10H
+		LD	H,A
+		POP	BC
+		DJNZ	ROLST3
+		JP	RES_VRAM
+;
+;==================== Установить режим экрана [A] ==============================
+;
+SET_SCRMOD:	AND	03
+		LD	(SCRMOD),A	
+		PUSH	BC
+		CALL	DIS_SCR
+		DI
+		LD	A,0C3H
+		LD	(VRAMADR),A
+		LD	(WYWOD),A
+		LD	(WIDTH),A
+		LD	(ROLL3),A
+		LD	(ROLSTR),A
+		LD	(CURON),A
+		LD	(CUROFF),A
+		LD	A,(SCRMOD)
+		DEC	A
+		JP	Z,SETSCR1
+		DEC	A
+		JP	Z,SETSCR2
+		DEC	A
+		JP	Z,SETSCR3
+		LD	HL,VRAMADR0
+		LD	(VRAMADR+1),HL
+		LD	HL,WIDTH80
+		LD	(WIDTH+1),HL
+		LD	HL,ROLL3_0
+		LD	(ROLL3+1),HL
+		LD	HL,ROLSTR_0
+		LD	(ROLSTR+1),HL
+		LD	HL,WYWOD_N
+		LD	(WYWOD+1),HL
+		LD	HL,CURON80
+		LD	(CURON+1),HL
+		LD	HL,CUROFF80
+		LD	(CUROFF+1),HL
+		LD	B,0
+		LD	HL,PALINITB1
+		ADD	HL,BC
+		LD	A,(HL)
+		CALL	SET_BORDER
+                LD      HL,MC6845L
+                CALL    INITI1
+                LD      A,(EXTPORT)
+                AND     0FCH
+                LD      BC,0FABFH
+                OUT     (C),A
+                LD      (EXTPORT),A
+		LD	H,4FH
+		LD	C,8EH
+SETSCR4:	LD	L,18H
+		LD	(WDOWN),HL
+		LD	HL,0
+		LD	(WUP),HL
+		LD	A,(SPCPORT)
+		AND	0FCH
+		OR	C
+		LD	(SPCPORT),A
+		LD	B,7FH
+		OUT	(C),A
+		CALL	PAL_INIT
+		POP	BC
+		PUSH	BC
+                LD	A,C
+		CALL	SET_PAPER
+		POP	BC
+                LD	A,B
+		CALL	SET_INK
+		XOR	A
+		CALL	SET_VPAGE
+		LD	HL,0
+		LD	(BASE1),HL
+		LD	(BASE2),HL
+		LD	(BASE3),HL
+		CALL	SET_BASE
+		CALL	CLS
+		JP	ENA_SCR
+;
+SETSCR1:	LD	HL,VRAMADR1
+		LD	(VRAMADR+1),HL
+		LD	HL,WIDTH40
+		LD	(WIDTH+1),HL
+		LD	HL,ROLL3_1
+		LD	(ROLL3+1),HL
+		LD	HL,ROLSTR_1
+		LD	(ROLSTR+1),HL
+		LD	HL,WYWOD_N
+		LD	(WYWOD+1),HL
+		LD	HL,CURON40
+		LD	(CURON+1),HL
+		LD	HL,CUROFF40
+		LD	(CUROFF+1),HL
+		LD	B,0
+		LD	HL,PALINITB2
+		ADD	HL,BC
+		LD	A,(HL)
+		CALL	SET_BORDER
+                LD      HL,MC6845L
+                CALL    INITI1
+                LD      A,(EXTPORT)
+                AND     0FCH
+                LD      BC,0FABFH
+                OUT     (C),A
+                LD      (EXTPORT),A
+		LD	H,27H
+		LD	C,8DH
+		JP	SETSCR4
+;
+SETSCR2:	LD	HL,VRAMADR2
+		LD	(VRAMADR+1),HL
+		LD	HL,WIDTH80H
+		LD	(WIDTH+1),HL
+		LD	HL,ROLL3_2
+		LD	(ROLL3+1),HL
+		LD	HL,ROLSTR_2
+		LD	(ROLSTR+1),HL
+		LD	HL,WYWODH_N
+		LD	(WYWOD+1),HL
+		LD	HL,CURON80H
+		LD	(CURON+1),HL
+		LD	HL,CUROFF80H
+		LD	(CUROFF+1),HL
+		XOR	A
+		CALL	SET_BORDER
+                LD      HL,MC6845H
+                CALL    INITI1
+                LD      A,(EXTPORT)
+                OR      3
+                LD      BC,0FABFH
+                OUT     (C),A
+                LD      (EXTPORT),A
+		LD	H,4FH
+		LD	C,8DH
+		JP	SETSCR4
+;
+SETSCR3:	LD	HL,VRAMADR3
+		LD	(VRAMADR+1),HL
+		LD	HL,WIDTH40H
+		LD	(WIDTH+1),HL
+		LD	HL,ROLL3_3
+		LD	(ROLL3+1),HL
+		LD	HL,ROLSTR_3
+		LD	(ROLSTR+1),HL
+		LD	HL,WYWODH_N
+		LD	(WYWOD+1),HL
+		LD	HL,CURON40H
+		LD	(CURON+1),HL
+		LD	HL,CUROFF40H
+		LD	(CUROFF+1),HL
+		XOR	A
+		CALL	SET_BORDER
+                LD      HL,MC6845H
+                CALL    INITI1
+                LD      A,(EXTPORT)
+                OR	3	
+		LD	BC,0FABFH
+		OUT	(C),A
+		LD	(EXTPORT),A
+		LD	H,27H
+		LD	C,8FH
+		JP	SETSCR4
+;
+;=================== Возвращает текущий режим экрана ===========================
+;
+GET_SCRMOD:	LD	A,(SCRMOD)
+		RET
+;
+;====== Устанавливает вид шрифта: подчеркнутый, негатив, широкий, сетчатый =====
+;
+SET_FONT:	LD	(MODES),A
+		RET
+;
+;======================= Возвращает вид шрифта =================================
+;
+GET_FONT:	LD	A,(MODES)
+		RET
+;
+;============= Устанавливает режим вывода: NORMAL, AND, OR, XOR ================
+;
+SET_MODE:	AND	3
+		LD	(SYMMOD),A
+		LD	C,A
+		LD	A,(SCRMOD)
+		RLCA
+		AND	4
+		OR	C
+		RLCA
+		LD	C,A
+		LD	B,0
+		LD	HL,SETMOD1
+		ADD	HL,BC
+		LD	E,(HL)
+		INC	HL
+		LD	D,(HL)
+		EX	DE,HL
+		LD	(WYWOD+1),HL
+		RET
+;
+SETMOD1:	DW	WYWOD_N,WYWOD_AND,WYWOD_OR,WYWOD_XOR
+		DW	WYWODH_N,WYWODH_AND,WYWODH_OR,WYWODH_XOR
+;
+;======================= Возвращает режим вывода ===============================
+;
+GET_MODE:	LD	A,(SYMMOD)
+		RET
+;
+;====== Устанавливает размер экрана: [HL]=XY начало, [B]=ширина, [C]=высота ====
+;
+SET_SIZE:	CALL	SETSIZE0
+		DEC	B
+		DEC	C
+		LD	A,L
+		ADD	A,B
+		LD	E,A
+		LD	A,H
+		ADD	A,C
+		LD	D,A
+		EX	DE,HL
+		CALL	SETSIZE0
+		LD	A,H		; [H]=правая граница
+		CP	D		; [D]=левая граница
+		JR	NC,SET_SIZE1
+		LD	H,D
+		LD	D,A
+SET_SIZE1:	LD	A,L		; [L]=нижняя граница
+		CP	E		; [E]=верхняя граница
+		JR	NC,SET_SIZE2
+		LD	L,E
+		LD	E,A
+SET_SIZE2:	LD	(WDOWN),HL
+		EX	DE,HL
+		LD	(WUP),HL
+		LD	(CSRY),HL
+		RET
+;
+SETSIZE0:	LD	A,(SCRMOD)
+		AND	1
+		LD	A,4FH
+		JR	Z,SETSIZE1
+		LD	A,27H
+SETSIZE1:	CP	H
+		JR	NC,SETSIZE2
+		LD	H,A
+SETSIZE2:	LD	A,18H
+		CP	L
+		RET	NC
+		LD	L,A
+		RET
+;
+;====== Возвращает размер экрана: [HL]=XY начало, [B]=ширина, [C]=высота =======
+;
+GET_SIZE:	LD	HL,(WUP)
+ROLL11:		LD	DE,(WDOWN)
+		LD	A,E
+		SUB	L
+		INC	A
+		LD	B,A
+		LD	A,D
+		SUB	H
+		INC	A
+		LD	C,A
+		RET
+;
+;====== Устанавливает новый адрес PGT: [A]=номер страницы, [HL]=адрес ==========
+;
+SET_PGT:	LD	(PGTPAGE),A
+		LD	(PGTADR),HL
+		RET
+;
+;================== Возвращает адрес PGT и номер страницы ====================
+;
+GET_PGT:	LD	HL,(PGTADR)
+		LD	A,(PGTPAGE)
+		RET
+;
+;========================= Включает видеопамять ================================
+;
+SET_VRAM:	DI
+		PUSH	BC
+		CALL	SAVESLT
+		LD	A,(SCRMOD)
+		AND	2
+		JR	Z,SET_VRAM_1
+		LD	A,(VPAGE)
+		ADD	A,A
+		AND	2
+		OR	0C0H
+		LD	B,7DH
+		OUT	(C),A
+		INC	B
+		INC	A
+		OUT	(C),A
+		POP	BC
+		RET
+;
+SET_VRAM_1:	LD	A,(VPAGE)
+		AND	3
+		OR	0C0H
+		LD	B,7DH
+		OUT	(C),A
+		POP	BC
+		RET
+;
+;========================= Выключает видеопамять ===============================
+;
+RES_VRAM:	CALL	LOADSLT
+		EI
+		RET
+;
+;=========== Устанавливает номер страниц видеопамяти из [A] ===================
+;
+SET_VPAGE:	LD	HL,SCRMOD
+		BIT	2,(HL)
+		JR	NZ,SET_VPAGE1
+		AND	33H
+		LD	(VPAGE),A
+		AND	3
+SET_VPAGE2:	ADD	A,A
+		LD	C,A
+		LD	B,0
+		LD	HL,BASE0
+		ADD	HL,BC
+		LD	E,(HL)
+		INC	HL
+		LD	D,(HL)
+		EX	DE,HL
+		JR	SET_BASE
+;
+SET_VPAGE1:	AND	11H
+		LD	(VPAGE),A
+		AND	1
+		JR	SET_VPAGE2
+;
+;================= Возвращает номер страниц видеопамяти в [A] =================
+;
+GET_VPAGE:	LD	A,(VPAGE)
+		RET
+;
+;=================== Устанавливает адрес начала изображения ====================
+;
+SET_BASE:	LD	A,(SCRMOD)
+		AND	2
+		JR	NZ,SET_BASE1
+		LD	A,H
+		AND	7
+		LD	H,A
+		LD	A,(VPAGE)
+		AND	03		;номер логической страницы
+                LD      C,A
+		LD	B,0
+		EX	DE,HL
+		LD	HL,BASE0
+		ADD	HL,BC
+                ADD     HL,BC
+		LD	(HL),E
+		INC	HL
+		LD	(HL),D
+		EX	DE,HL
+		LD	(BASE),HL
+		LD	A,(VPAGE)
+		LD	B,A
+		RRCA
+		RRCA
+		RRCA
+		RRCA
+		AND	3		;номер физической страницы
+		CP	C
+		RET	NZ		;если номер физической страницы
+		SRL	H		;равен номеру логической, то
+		RR	L		;программируем MC6845
+		LD	A,B
+		AND	30H
+		LD	C,A
+		LD	A,H
+		AND	3
+SET_BASE2:	OR	C
+		LD	E,A
+		LD	D,12
+		CALL	WR_CRT
+		LD	E,L
+		INC	D
+		JP	WR_CRT
+;
+SET_BASE1:	LD	A,H
+		AND	0FH
+		LD	H,A
+		LD	A,(VPAGE)
+		AND	01		;номер логической страницы
+		LD	C,A
+		LD	B,0
+		EX	DE,HL
+		LD	HL,BASE0
+		ADD	HL,BC
+                ADD     HL,BC
+		LD	(HL),E
+		INC	HL
+		LD	(HL),D
+		EX	DE,HL
+		LD	(BASE),HL
+		LD	A,(VPAGE)
+		LD	B,A
+		RRCA
+		RRCA
+		RRCA
+		RRCA
+		AND	1		;номер физической страницы
+		CP	C
+		RET	NZ		;если номер физической страницы
+		SRL	H		;равен номеру логической, то
+		RR	L		;программируем MC6845
+		LD	A,B
+		RLCA
+		AND	20H
+		LD	C,A
+		LD	A,H
+		AND	07
+		JR	SET_BASE2
+;
+;=================== Возвращает адрес начала изображения =======================
+;
+GET_BASE:	LD	HL,(BASE)
+		RET
+;
+;=================== Устанавливает цвет курсора ================================
+;
+SET_CURINK:	LD	HL,CURINK
+		LD	E,A
+		JR	INK00
+;
+ESCCL:		LD	A,(ESCBUF+1)
+;
+;=================== Устанавливает цвет фона ===================================
+;
+SET_PAPER:	LD	HL,PAPER
+		LD	E,A
+		LD	A,(SCRMOD)
+		AND	A
+		JR	NZ,INK0
+		LD	(HL),E
+		LD	D,0
+		LD	HL,PALINITB1
+		ADD	HL,DE
+		LD	E,(HL)
+		XOR	A
+		JP	SET_PAL
+;
+ESCBL:		LD	A,(ESCBUF+1)
+;
+;=================== Устанавливает цвет символов ===============================
+;
+SET_INK:	LD	HL,INK
+		LD	E,A
+		LD	A,(SCRMOD)
+		AND	A
+		JR	NZ,INK0
+		LD	(HL),E
+		LD	D,0
+		LD	HL,PALINITB1
+		ADD	HL,DE
+		LD	E,(HL)
+		LD	A,1
+		JP	SET_PAL
+;
+INK0:		CP	3
+		JR	Z,INK1
+INK00:		XOR	A
+		BIT	0,E
+		JR	Z,INK2
+		OR	0F0H
+INK2:		BIT	1,E
+		JR	Z,INK3
+		OR	0FH
+INK3:		LD	(HL),A
+		RET
+;
+INK1:		XOR	A
+		BIT	0,E
+		JR	Z,INK4
+		OR	0C0H
+INK4:		BIT	1,E
+		JR	Z,INK5
+		OR	0CH
+INK5:		BIT	2,E
+		JR	Z,INK6
+		OR	30H
+INK6:		BIT	3,E
+		JR	Z,INK7
+		OR	3
+INK7:		LD	(HL),A
+		RET
+;
+;=================== Возврашает цвет курсора ===================================
+;
+GET_CURINK:	LD	HL,CURINK
+		JR	PAP0
+;
+;=================== Возвращает цвет символов ==================================
+;
+GET_INK:	LD	HL,INK
+		JR	PAP0
+;
+;======================= Возвращает цвет фона ==================================
+;
+GET_PAPER:	LD	HL,PAPER
+PAP0:		LD	A,(SCRMOD)
+		AND	A
+		JR	Z,PAP5
+		CP	3
+		JR	Z,PAP3
+PAP1:		XOR	A
+		LD	E,(HL)
+		BIT	7,E
+		JR	Z,PAP2
+		OR	1
+PAP2:		BIT	3,E
+		RET	Z
+		OR	2
+		RET
+;
+PAP3:		CALL	PAP1
+		BIT	5,E
+		JR	Z,PAP4
+		OR	4
+PAP4:		BIT	1,E
+		RET	Z
+		OR	8
+		RET
+;
+PAP5:		LD	A,(HL)
+		RET
+;
+;================== Установка цвета бордюра ====================================
+;
+SET_BORDER:	PUSH	BC
+		LD	C,10H
+		AND	3FH
+		LD	(BORDER),A
+		LD	B,7FH
+		OUT	(C),C
+		OR	40H
+		OUT	(C),A
+		POP	BC
+		RET
+;
+;================== Возвращает цвет бордюра ====================================
+;
+GET_BORDER:	LD	A,(BORDER)
+		RET
+;
+;================== Инициализация палитры ======================================
+;
+PAL_INIT:	LD	A,(SCRMOD)
+		LD	E,A
+		ADD	A,A
+		ADD	A,E
+		LD	E,A
+		LD	D,0
+		LD	HL,PALINITAB
+		ADD	HL,DE
+		LD	B,(HL)
+		INC	HL
+		LD	E,(HL)
+		INC	HL
+		LD	D,(HL)
+		EX	DE,HL
+		LD	C,0	
+PAL_INIT1:	LD	A,C
+		LD	E,(HL)
+		CALL	SET_PAL
+		INC	HL
+		INC	C
+		DJNZ	PAL_INIT1
+		RET
+;
+PALINITAB:	DB	2
+		DW	PALINITB3
+		DB	4
+		DW	PALINITB2
+		DB	4
+		DW	PALINITB2
+		DB	16
+		DW	PALINITB1
+;
+PALINITB1:	DB	00H,15H,2AH,3FH,10H,20H,30H,22H	; Палитра 16 цветов
+		DB	04H,08H,0CH,3EH,01H,02H,03H,0BH
+;
+PALINITB2:	DB	00H,30H,01H,3FH		; Палитра 4 цвета
+;
+PALINITB3:	DB	00H,3FH			; Палитра 2 цвета
+;
+;=================== Устанавливает палитру [E] на цвет [A] =====================
+;
+SET_PAL:	PUSH	HL
+		PUSH	BC
+		LD	HL,PALTAB
+		AND	0FH
+		LD	C,A
+		LD	B,0
+		ADD	HL,BC
+		LD	(HL),E
+		LD	B,7FH
+		OUT	(C),A
+		LD	A,E
+		AND	3FH
+		OR	40H
+		OUT	(C),A
+		POP	BC
+		POP	HL
+		RET
+;
+;=================== Возвращает в [A] палитру цвета [A] ========================
+;
+GET_PAL:	PUSH	HL
+		PUSH	BC
+		LD	C,A
+		LD	B,0
+		LD	HL,PALTAB
+		ADD	HL,BC
+		LD	A,(HL)
+		POP	BC
+		POP	HL
+		RET
+;
+;================== Инициализация курсора ======================================
+;
+CUR_INIT:	LD	A,0A0H
+		LD	(MODECUR),A
+		LD	A,0FH
+		CALL	SET_CURINK
+		LD	HL,CURFORM
+		LD	DE,CURNORM
+		LD	BC,0010H
+		LDIR
+		RET
+;
+CURFORM:	DS	8,0FFH
+		DS	5,0
+		DS	3,0FFH
+;
+;========================== Включить курсор ====================================
+;
+ENA_CUR:	LD	A,(MODECUR)
+		OR	80H
+		LD	(MODECUR),A
+		RET
+;
+;========================== Выключить курсор ===================================
+;
+DIS_CUR:	LD	A,(MODECUR)
+		AND	7FH
+		LD	(MODECUR),A
+		RET
+;
+;========================= Включить раздвижку ==================================
+;
+INSERT_ON:	LD	A,(MODECUR)
+		OR	40H
+		LD	(MODECUR),A
+		RET
+;
+;========================= Выключить раздвижку =================================
+;
+INSERT_OFF:	LD	A,(MODECUR)
+		AND	0BFH
+		LD	(MODECUR),A
+		RET
+;
+;========================= Установить курсор в позицию [HL] ====================
+;
+SET_CUR:	PUSH	DE
+		PUSH	BC
+		PUSH	AF
+		LD	DE,(WUP)
+		ADD	HL,DE
+		CALL	CSRPOS
+		LD	(CSRY),HL
+		POP	AF
+		POP	BC
+		POP	DE
+		RET
+;
+;========================= Вернуть позицию курсора в [HL] ======================
+;
+GET_CUR:	PUSH	DE
+		PUSH	AF
+		LD	HL,(CSRY)
+		LD	DE,(WUP)
+		XOR	A
+		SBC	HL,DE
+		POP	AF
+		POP	DE
+		RET
+;
+;============================= Вывод курсора ===================================
+;
+PLACE_CUR:	JP	CURON
+;
+CURON80:	CALL	SET_VRAM
+		LD	HL,(CSRY)
+		CALL	VRAMADR
+		LD	DE,BUFCUR
+		CALL	WWOD
+		LD	DE,CURNORM
+		LD	A,(MODECUR)
+		BIT	6,A
+		JR	Z,A0A38
+		LD	DE,CURINS
+A0A38:		LD	B,8
+A0A39:		LD	A,(DE)
+		XOR	(HL)
+		LD	(HL),A
+		INC	DE
+		LD	A,H
+		ADD	A,8
+		LD	H,A
+		DJNZ	A0A39
+		JP	RES_VRAM
+;
+CURON40:	CALL	SET_VRAM
+		LD	HL,(CSRY)
+		CALL	VRAMADR
+		LD	DE,BUFCUR
+		CALL	WWOD
+		INC	HL
+		CALL	WWOD
+		DEC	HL
+		LD	DE,CURNORM
+		LD	A,(MODECUR)
+		BIT	6,A
+		JR	Z,A0A3A
+		LD	DE,CURINS
+A0A3A:		LD	B,8
+		LD	A,(CURINK)
+		AND	88H
+		LD	C,A
+A0A3B:		LD	A,(DE)
+		PUSH	BC
+		PUSH	DE
+		LD	D,A
+		CALL	SYMC1
+		INC	HL
+		CALL	SYMC1
+		DEC	HL
+		LD	A,H
+		ADD	A,8
+		LD	H,A
+		POP	DE
+		INC	DE
+		POP	BC
+		DJNZ	A0A3B
+		JP	RES_VRAM
+;
+CURON80H:	CALL	SET_VRAM
+		LD	HL,(CSRY)
+		CALL	VRAMADR
+		LD	DE,BUFCUR
+		CALL	WWODH
+		INC	HL
+		CALL	WWODH
+		DEC	HL
+		LD	DE,CURNORM
+		LD	A,(MODECUR)
+		BIT	6,A
+		JR	Z,A0A3C
+		LD	DE,CURINS
+A0A3C:		LD	B,4
+		LD	A,(CURINK)
+		AND	88H
+		LD	C,A
+A0A3D:		LD	A,(DE)
+		PUSH	BC
+		PUSH	DE
+		LD	D,A
+		CALL	SYMC1
+		INC	HL
+		CALL	SYMC1
+		LD	BC,3FFFH
+		ADD	HL,BC
+		POP	DE
+		INC	DE
+		LD	A,(DE)
+		PUSH	DE
+		LD	D,A
+		CALL	SYMC1
+		INC	HL
+		CALL	SYMC1
+		LD	BC,0CFFFH
+		ADD	HL,BC
+		POP	DE
+		INC	DE
+		POP	BC
+		DJNZ	A0A3D
+		JP	RES_VRAM
+;
+CURON40H:	CALL	SET_VRAM
+		LD	HL,(CSRY)
+		CALL	VRAMADR
+		LD	DE,BUFCUR
+		CALL	WWODH
+		INC	HL
+		CALL	WWODH
+		INC	HL
+		CALL	WWODH
+		INC	HL
+		CALL	WWODH
+		DEC	HL
+		DEC	HL
+		DEC	HL
+		LD	DE,CURNORM
+		LD	A,(MODECUR)
+		BIT	6,A
+		JR	Z,A0A3E
+		LD	DE,CURINS
+A0A3E:		LD	B,4
+		LD	A,(CURINK)
+		AND	0AAH
+		LD	C,A
+A0A3F:		PUSH	BC
+		LD	A,(DE)
+		LD	B,A
+		CALL	SYMC2
+		INC	HL
+		CALL	SYMC2
+		INC	HL
+		CALL	SYMC2
+		INC	HL
+		CALL	SYMC2
+		DEC	HL
+		DEC	HL
+		DEC	HL
+		LD	A,H
+		ADD	A,40H
+		LD	H,A
+		INC	DE
+		LD	A,(DE)
+		LD	B,A
+		CALL	SYMC2
+		INC	HL
+		CALL	SYMC2
+		INC	HL
+		CALL	SYMC2
+		INC	HL
+		CALL	SYMC2
+		DEC	HL
+		DEC	HL
+		DEC	HL
+		LD	A,H
+		SUB	30H
+		LD	H,A
+		INC	DE
+		POP	BC
+		DJNZ	A0A3F
+		JP	RES_VRAM
+;
+WWOD:		LD	B,8
+		PUSH	HL
+WWOD1:		LD	A,(HL)
+		LD	(DE),A
+		INC	DE
+		LD	A,H
+		ADD	A,08
+		LD	H,A
+		DJNZ	WWOD1
+		POP	HL
+		RET
+;
+WWODH:		LD	B,4
+		PUSH	HL
+WWODH1:		LD	A,(HL)
+		LD	(DE),A
+		INC	DE
+		LD	A,H
+		ADD	A,40H
+		LD	H,A
+		LD	A,(HL)
+		LD	(DE),A
+		INC	DE
+		LD	A,H
+		AND	3FH
+		OR	40H
+		ADD	A,10H
+		LD	H,A
+		DJNZ	WWODH1
+		POP	HL
+		RET
+;
+SYMC1:		LD	E,C
+		XOR	A
+		LD	B,4
+SYMC1_2:	RLC	D
+		JR	NC,SYMC1_3
+		OR	E
+SYMC1_3:	RRC	E
+		DJNZ	SYMC1_2
+		XOR	(HL)
+		LD	(HL),A
+		RET
+;
+SYMC2:		XOR	A
+SYMC2_2:	RLC	B
+		JR	NC,SYMC2_3
+		OR	C
+SYMC2_3:	RRC	C
+		RLC	B
+		JR	NC,SYMC2_4
+		OR	C
+SYMC2_4:	RLC	C
+		XOR	(HL)
+		LD	(HL),A
+		RET
+;
+;=========================== Гашение курсора ===================================
+;
+ERASE_CUR:	JP	CUROFF
+;
+CUROFF80:	CALL	SET_VRAM
+		LD	HL,(CSRY)
+		CALL	VRAMADR
+		LD	DE,BUFCUR
+		CALL	WYWOD_N
+		JP	RES_VRAM
+;
+CUROFF40:	CALL	SET_VRAM
+		LD	HL,(CSRY)
+		CALL	VRAMADR
+		LD	DE,BUFCUR
+		CALL	WYWOD_N
+		INC	HL
+		CALL	WYWOD_N
+		JP	RES_VRAM
+;
+CUROFF80H:	CALL	SET_VRAM
+		LD	HL,(CSRY)
+		CALL	VRAMADR
+		LD	DE,BUFCUR
+		CALL	WYWODH_N
+		INC	HL
+		CALL	WYWODH_N
+		JP	RES_VRAM
+;
+CUROFF40H:	CALL	SET_VRAM
+		LD	HL,(CSRY)
+		CALL	VRAMADR
+		LD	DE,BUFCUR
+		CALL	WYWODH_N
+		INC	HL
+		CALL	WYWODH_N
+		INC	HL
+		CALL	WYWODH_N
+		INC	HL
+		CALL	WYWODH_N
+		JP	RES_VRAM
+
+;
+;=================== RST 18H  Вывод символа из [A] =============================
+;
+SYMBOL:		PUSH	AF
+		PUSH	BC
+		PUSH	DE
+		PUSH	HL
+		CALL	XFDD6
+		CALL	SYMBOL1	; Вывод символа из [A]
+		POP	HL
+		POP	DE
+		POP	BC
+		POP	AF
+		RET
+;
+SYMBOL1:	LD	C,A
+        	CP	01
+		JR	NZ,GRAPH2
+		LD	(GRPHED),A
+		RET
+;
+GRAPH1:		XOR	A
+		LD	(GRPHED),A
+		LD	A,C
+		SUB	40H
+		CP	20H
+		JR	C,GRAPH3
+		RET
+;
+GRAPH2:		LD	A,(GRPHED)
+		AND	A
+		JR	NZ,GRAPH1
+		LD	HL,ESCCNT	; Счетчик ESC последовательности
+		LD	A,(HL)
+		AND	A
+		JP	NZ,ESC2	; Обработка ESC кодов
+		LD	A,C
+		CP	7FH
+		JP	Z,DEL
+		CP	20H
+		JP	C,CTRLS	; Обработка CTRL кодов
+GRAPH3:		CALL	SYMBOL2
+		LD	HL,(CSRY)	; CURSOR X,Y
+		INC	H
+CURPOS:		CALL	CSRPOS
+		LD	(CSRY),HL
+		RET	C
+		JP	SCROLL
+;
+;CSRPOS:	Коррекция координат курсора.
+;
+;Вход:	[HL]=XY курсора   
+;Выход:	[HL]=XY скорректированные
+;	CF  = 1 ролик не нужен
+;	CF  = 0 нужен ролик
+;	[B] =00 ролик вниз
+;	[B] =FF ролик вверх
+;
+CSRPOS:		LD	A,(WRIGHT)	; правая граница окна
+		CP	H
+		JP	P,CSRPOS1
+		LD	A,(WLEFT)	; левая граница окна
+		LD	H,A
+		INC	L
+CSRPOS1:	LD	A,(WLEFT)	
+		DEC	A
+		CP	H
+		JP	M,CSRPOS2
+		LD	A,(WRIGHT)
+		LD	H,A	
+		DEC	L
+CSRPOS2:	LD	A,(WUP)	; верхняя граница окна
+		DEC	A
+		CP	L
+		JP	P,CSRPOS3
+		LD	A,(WDOWN)	; нижняя граница окна
+		CP	L
+		SCF
+		RET	P
+		LD	L,A
+		LD	B,0FFH
+		OR	A
+		RET
+;
+CSRPOS3:	INC	A
+		LD	L,A
+		LD	B,0
+		OR	A
+		RET
+;
+;ESC2:	Обработка ESC кодов
+;
+ESC2:		BIT	7,A	; Если (ESCCNT) < 80h ,то ESC3
+		JR	Z,ESC3
+        	LD	(HL),0
+		LD	HL,ESCBUF
+		LD	(HL),C	; Код в буфер ESC кодов
+		INC	HL	; увеличить адрес в буфере и
+		LD	(ESCADR),HL	; запомнить его в (ESCADR)
+		CALL	SEARCH
+		JP	M,ESC5
+		LD	A,(HL)
+		INC	A
+ESC4:		DEC	A	; Уменьшить число допол. кодов
+		LD	(ESCCNT),A  ; Если не все кода приняты ,то выход
+		RET	NZ
+		LD	HL,ESCBUF	; Выполнить ESC последовательность
+		LD	C,(HL)
+		CALL	SEARCH
+		INC	HL
+		JR	CTRL2
+;
+ESC3:		LD	HL,(ESCADR)	; Код в буфер
+		LD	(HL),C	
+		INC	HL
+		LD	(ESCADR),HL
+		CP	06	; Если число допол. кодов > 6 ,то
+		JR	C,ESC4	; прервать выполнение ESC последовательности
+ESC5:		XOR	A
+		LD	(ESCCNT),A
+		RET
+;
+SEARCH:		LD	HL,ESCTAB	; поиск кода в таблице
+SEARCH1:	LD	A,(HL)
+		DEC	A
+		RET	M	; код не найден - выход
+		INC	A
+        	INC	HL
+		CP	C
+		RET	Z
+		INC	HL
+		INC	HL
+		INC	HL
+		JR	SEARCH1
+;
+ESC:		LD	A,0FFH
+		LD	(ESCCNT),A
+		RET
+;
+CTRLS:		LD	HL,CTRLTAB-2
+CTRL1:		INC	HL
+		INC	HL
+		LD	A,(HL)
+		AND	A
+		RET	Z
+		INC	HL
+		CP	C
+		JR	NZ,CTRL1
+CTRL2:		LD	C,(HL)
+		INC	HL
+		LD	B,(HL)
+		PUSH	BC
+		RET
+;
+CTRLTAB:	DEFB	07
+		DEFW	BEEP
+		DEFB	08
+		DEFW	LEFT
+		DEFB	09
+		DEFW	TAB
+		DEFB	0AH
+		DEFW	DOWN
+		DEFB	0BH
+		DEFW	HOME
+		DEFB	0CH
+		DEFW	CLS
+		DEFB	0DH
+		DEFW	CR
+		DEFB	1BH
+		DEFW	ESC
+		DEFB	1CH
+		DEFW	RIGHT
+		DEFB	1DH
+		DEFW	LEFT
+		DEFB	1EH
+		DEFW	UP
+		DEFB	1FH
+		DEFW	DOWN
+		DEFB	0
+;
+ESCTAB:		DEFB	41H,0
+		DEFW	UP1
+		DEFB	42H,0
+		DEFW	DOWN1
+		DEFB	43H,0
+		DEFW	RIGHT1
+		DEFB	44H,0
+		DEFW	LEFT1
+		DEFB	45H,0
+		DEFW	CLS
+		DEFB	48H,0
+		DEFW	HOME
+		DEFB	49H,0
+		DEFW	UP1
+		DEFB	4AH,0
+		DEFW	ESCJ
+		DEFB	4BH,0
+		DEFW	ESCK
+		DEFB	4CH,0
+		DEFW	ESCL
+		DEFB	4DH,0
+		DEFW	ESCM
+		DEFB	59H,2
+		DEFW	ESCY
+		DEFB	62H,1
+		DEFW	ESCBL
+		DEFB	63H,1
+		DEFW	ESCCL
+		DEFB	64H,0
+		DEFW	ESCDL
+		DEFB	65H,0
+		DEFW	ENA_CUR
+		DEFB	66H,0
+		DEFW	DIS_CUR
+		DEFB	6AH,0
+		DEFW	ESCJL
+		DEFB	6BH,0
+		DEFW	ESCKL
+		DEFB	6CH,0
+		DEFW	ESCLL
+		DEFB	6FH,0
+		DEFW	ESCOL
+		DEFB	70H,0
+		DEFW	ESCPL
+		DEFB	71H,0
+		DEFW	ESCQL
+		DEFB	78H,1
+		DEFW	ESCXL
+		DEFB	79H,1
+		DEFW	ESCYL
+		DEFB	0
+;
+DEL:		LD	HL,(CSRY)
+		LD	A,(WRIGHT)
+		PUSH	HL
+		SUB	H
+		JR	Z,DEL1
+		LD	C,A
+		PUSH	HL
+		CALL	VRAMADR
+		EX	DE,HL
+		POP	HL
+		INC	H
+		CALL	VRAMADR
+		CALL	SET_VRAM
+		CALL	ROLL3
+		CALL	RES_VRAM
+DEL1:		POP	HL
+		LD	A,(WRIGHT)
+		LD	H,A
+		CALL	VRAMADR
+		LD	C,1
+		JP	ROLSTR
+;
+BEEP:		CALL	A1AD0		;Возвращает параметры BEEP
+		DEC	B
+		JR	Z,BEEP_1		;BEEP 1
+		DEC	B
+		JR	Z,BEEP_2		;BEEP 2
+		DEC	B
+		JR	Z,BEEP_3		;BEEP 3
+		LD	E,5EH
+		CALL	A1B11		;установка частоты канала B
+		LD	DE,07BDH
+		CALL	WR_PSG
+		LD	E,C
+		LD	D,09		;устанавливает громкость из [C]
+		CALL	WR_PSG
+		LD	BC,7D0H
+		CALL	BEEP_WAIT
+A1A86:		LD	DE,07BFH
+                CALL    WR_PSG
+                LD      DE,0800H
+                CALL    WR_PSG
+                LD      DE,0900H
+                CALL    WR_PSG
+                LD      DE,0A00H
+		JP	WR_PSG
+;       	
+BEEP_1:		LD	HL,L1B3E
+		LD	DE,07B8H
+		CALL	WR_PSG
+		LD	DE,02BAH
+		CALL	A1B12
+		LD	DE,04BBH
+		CALL	A1B12
+		LD	E,0B9H
+A1AA8:		CALL	A1AEA
+		JR	A1A86
+;
+BEEP_2:		LD	HL,L1B3E
+		CALL	A1B1A
+		LD	E,2EH
+		CALL	A1AEA
+		LD	E,3BH
+		JR	A1AA8
+;
+BEEP_3:		LD	HL,L1B46
+		CALL	A1B1A
+		LD	E,77H
+		CALL	A1AEA
+		LD	E,4FH
+		CALL	A1AEA
+		LD	E,5EH
+		JR	A1AA8
+;
+;Возвращает в [B] вид BEEP, в [C] громкость
+;
+A1AD0:		LD	D,1BH
+		CALL	RD_CLOCK
+		LD	A,E
+		AND	0FH
+		LD	C,A
+		LD	A,E
+		RRCA
+		RRCA
+		RRCA
+		RRCA
+		AND	3
+		LD	B,A
+		RET
+;
+A1AEA:		CALL	A1B11	; Устанавливает частоту канала A
+		PUSH	BC
+		PUSH	HL
+		LD	E,C
+		LD	A,E
+		AND	A
+		JR	Z,A1AFA
+		DEC	C
+		LD	B,0
+		ADD	HL,BC
+		ADD	HL,BC
+		LD	C,(HL)
+		INC	HL
+		LD	B,(HL)
+A1AF9:		LD	D,08
+		CALL	WR_PSG
+		LD	D,09
+		CALL	WR_PSG
+		LD	D,10
+		CALL	WR_PSG
+		CALL	BEEP_WAIT
+		DEC	E
+		JR	NZ,A1AF9
+A1AFA:		POP	HL
+		POP	BC
+		RET
+;
+; Установка частоты из [E]
+;
+A1B11:		LD	D,2
+A1B12:		CALL	WR_PSG
+		LD	E,0
+		INC	D
+		JP	WR_PSG
+;
+A1B1A:		LD	DE,07BDH
+		JP	WR_PSG	
+
+;
+BEEP_WAIT:	PUSH	BC		;Задержка по [BC]
+A1B29:		DEC	BC
+		EX	(SP),HL
+		EX	(SP),HL
+		LD	A,B
+		OR	C
+		JR	NZ,A1B29
+		POP	BC
+		RET
+;
+L1B3E:		DW	4362H,21B1H,1676H,10D8H,0D7AH,0B3BH,09A0H,086CH
+		DW	077CH,06BDH,0620H,059DH,052EH,04D0H,047EH
+;
+L1B46:		DW	1671H,0B38H,077BH,059CH,047DH,03BDH,0334H,02CEH
+		DW	027EH,023EH,020AH,01DEH,01B9H,019AH,017FH
+
+;
+LEFT1:		LD	HL,(CSRY)
+		DEC	H
+		LD	E,L
+		CALL	CSRPOS
+		LD	L,E
+		LD	(CSRY),HL
+		RET
+;
+TAB:		LD	A,(CSRX)
+		LD	B,A
+		AND	0F8H
+		ADD	A,08
+		SUB	B
+		LD	B,A
+TAB1:		PUSH	BC
+		LD	A,20H
+		CALL	SYMBOL1
+		POP	BC
+		DJNZ	TAB1
+		RET
+;
+DOWN:		LD	HL,(CSRY)
+		INC	L
+		JP	CURPOS
+;
+CLS:		CALL	GET_SIZE
+		CALL	VRAMADR
+		CALL	ESCJ1
+;       	
+HOME:		LD	HL,(WUP)
+		LD	(CSRY),HL
+		RET
+;
+CR:		LD	A,(WLEFT)
+		LD	(CSRX),A
+		RET
+;
+LEFT:		LD	HL,(CSRY)
+		DEC	H
+		JP	CURPOS
+;
+RIGHT:		LD	HL,(CSRY)
+		INC	H
+		JP	CURPOS
+;
+UP:		LD	HL,(CSRY)
+		DEC	L
+		JP	CURPOS
+;
+UP1:		LD	HL,(CSRY)
+		DEC	L
+		CALL	CSRPOS
+		LD	(CSRY),HL
+		RET
+;
+DOWN1:		LD	HL,(CSRY)
+		INC	L
+		CALL	CSRPOS
+		LD	(CSRY),HL
+		RET
+;
+RIGHT1:		LD	HL,(CSRY)
+		INC	H
+		LD	E,L
+		CALL	CSRPOS
+		LD	L,E
+		LD	(CSRY),HL
+		RET
+;
+; Очистка от курсора до конца строки
+;
+ESCK:		LD	A,(CSRX)
+		LD	C,A
+		LD	A,(WRIGHT)
+		SUB	C
+		INC	A
+		LD	C,A
+		LD	HL,(CSRY)
+		CALL	VRAMADR
+		JP	ROLSTR
+;
+; Очистка от курсора до конца экрана
+;
+ESCJ:		CALL	ESCK
+		LD	A,(CSRY)
+		LD	C,A
+		INC	A
+		LD	L,A
+		LD	A,(WDOWN)
+		SUB	C
+		RET	Z
+		LD	B,A
+		LD	A,(WLEFT)
+		LD	H,A
+		LD	A,(WRIGHT)
+		SUB	H
+		INC	A
+		LD	C,A
+		CALL	VRAMADR
+ESCJ1:		CALL	WAIT
+		LD	A,(SCRMOD)
+		AND	2
+		JR	Z,ESCJ2
+ESCJ10:		PUSH	BC
+		PUSH	HL
+		CALL	ROLSTR
+		POP	HL
+		LD	BC,160
+		ADD	HL,BC
+		LD	A,H
+		AND	0FH
+		ADD	A,40H
+		LD	H,A
+		POP	BC
+		DJNZ	ESCJ10
+		RET
+;
+ESCJ2:		PUSH	BC
+		PUSH	HL
+		CALL	ROLSTR
+		POP	HL
+		LD	BC,80
+		ADD	HL,BC
+		LD	A,H
+		AND	07
+		ADD	A,40H
+		LD	H,A
+		POP	BC
+		DJNZ	ESCJ2
+		RET
+;
+LINE:		LD	A,(WLEFT)
+		LD	(CSRX),A
+		LD	HL,(CSRY)
+		JP	ROLL11
+;
+; Вставить строку
+;
+ESCL:		CALL	LINE
+		CALL	ROLDOW1
+		JP	ROLSTR
+;
+; Удалить строку
+;
+ESCM:		CALL	LINE
+		CALL	ROLUP2
+		JP	ROLSTR
+;
+; Позиционирование курсора
+;
+ESCY:		LD	HL,(ESCBUF+1)
+		LD	A,H
+		SUB	20H
+		LD	H,A
+		LD	A,L
+		SUB	20H
+		LD	L,A
+		LD	DE,(WUP)
+		ADD	HL,DE
+		CALL	CSRPOS
+		LD	(CSRY),HL
+		RET
+;
+ESCJL:		LD	HL,(CSRY)
+		LD	(SAVECUR),HL
+		RET
+;
+ESCKL:		LD	HL,(SAVECUR)
+		LD	(CSRY),HL
+		RET
+;
+; Стереть строку без сдвига остальных
+;
+ESCLL:		CALL	GET_SIZE
+		LD	A,(CSRY)
+		LD	L,A
+		CALL	VRAMADR
+		JP	ROLSTR
+;
+; Очистить от начала экрана до курсора
+;
+ESCDL:		LD	HL,(WUP)
+		LD	A,(CSRY)
+		SUB	L
+		JR	Z,ESCOL
+		LD	B,A
+		LD	A,(WLEFT)
+		LD	C,A
+		LD	A,(WRIGHT)
+		SUB	C
+		INC	A
+		LD	C,A
+		CALL	VRAMADR
+		CALL	ESCJ1
+;
+; Стереть от начала строки до курсора
+;
+ESCOL:		LD	HL,(WUP)
+		LD	A,(CSRX)
+		SUB	H
+		INC	A
+		LD	C,A
+		LD	A,(CSRY)
+		LD	L,A
+		CALL	VRAMADR
+		JP	ROLSTR
+;
+ESCPL:		LD	HL,MODES
+		SET	1,(HL)
+		RET
+;
+ESCQL:		LD	HL,MODES
+		RES	1,(HL)
+		RET
+;
+ESCXL:		LD	A,(ESCBUF+1)
+		SUB	34H
+		JP	Z,INSERT_ON
+		RET
+;
+ESCYL:		LD	A,(ESCBUF+1)
+		SUB	34H
+		JP	Z,INSERT_OFF
+		RET
+

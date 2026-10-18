@@ -1,0 +1,1112 @@
+; BIOS.DRV
+;======================== Инициализация клавиатуры ============================= 
+;
+KEY_INIT:	LD	HL,KEYINITAB
+		LD	DE,OLDKEY
+		LD	BC,KEYINIEND-KEYINITAB+1
+		LDIR
+		LD	BC,0F782H
+		OUT	(C),C
+		RET
+;
+KEYINITAB:	DS	11,0FFH		;OLDKEY
+		DS	11,0FFH		;NEWKEY
+		DS	40,0		;KEYBUF
+		DB	00H		;INTFLAG
+		DB	01H		;SCNCNT
+		DB	01H		;REPCNT
+		DB	00H		;BEEPCNT
+		DW	KEYBUF		;GETKEY
+		DW	KEYBUF		;PUTKEY
+		DB	8		;TABCOD1
+		DW	NORMTAB
+		DB	8		;TABCOD2
+		DW	SHIFTAB
+		DB	8		;TABCOD3
+		DW	RUSTAB
+		DB	8		;TABCOD4
+		DW	SHRUSTAB
+		DB	01H		;SCAN
+		DB	01H		;REPEAT
+		DB	14H		;DELAY
+KEYINIEND:	DB	0		;KEYMOD
+;
+;====== Сканирует матрицу KEYBOARD и записывает данные в NEWKEY STATUS =========
+;
+KEYB_SCAN:	DI
+		LD	HL,NEWKEY
+		LD	BC,0F40EH
+		OUT	(C),C
+		LD	B,0F6H
+		IN	A,(C)
+		AND	30H
+		LD	C,A
+		OR	0C0H
+		OUT	(C),A
+		OUT	(C),C
+		INC	B
+		LD	A,92H
+		OUT	(C),A
+		PUSH	BC
+		SET	6,C
+KEYB_SCAN1:	LD	B,0F6H
+		OUT	(C),C
+		LD	B,0F4H
+		IN	A,(C)
+		LD	(HL),A
+		INC	HL
+		INC	C
+		LD	A,C
+		AND	0FH
+		CP	0BH
+		JR	NZ,KEYB_SCAN1
+		POP	BC
+		LD	A,82H
+		OUT	(C),A
+		DEC	B
+		OUT	(C),C
+		EI
+		RET
+;
+;========== Сканирует клавиатуру и заполняет KEYBUF нажатыми клавишами =========
+;
+KEY_SCAN:	CALL	KEYB_SCAN
+		LD	A,(KEYMOD)
+		AND	18H
+		PUSH	HL
+		LD	HL,NEWKEY+1
+		BIT	1,(HL)			; Alt
+		JR	NZ,KEY_SCAN2
+		SET	7,A
+KEY_SCAN2:	INC	HL
+		BIT	5,(HL)			; Shift
+		JR	NZ,KEY_SCAN3
+		SET	5,A
+KEY_SCAN3:	BIT	7,(HL)			; Ctrl
+		JR	NZ,KEY_SCAN4
+		SET	6,A
+KEY_SCAN4:	LD	(KEYMOD),A
+		POP	HL
+		LD	DE,NEWKEY		; Сравнивает буфер NEWKEY с OLDKEY
+		LD	B,0BH
+KEY_SCAN5:	DEC	DE
+		DEC	HL
+		LD	A,(DE)
+		CP	(HL)
+		JR	NZ,KEY_SCAN6
+		DJNZ	KEY_SCAN5
+		JR	KEY_REPEAT		; Ни одна не нажата
+;
+KEY_SCAN6:	LD	A,(DELAY)		; Начальное значение задержки автоповтора
+		LD	(REPCNT),A
+KEY_REPEAT:	CALL	XFDBD
+		LD	B,0BH
+		LD	HL,OLDKEY
+		LD	DE,NEWKEY
+KEY_SCAN7:	LD	A,(DE)
+		LD	C,A
+		XOR	(HL)
+		AND	(HL)
+		LD	(HL),C
+		CALL	NZ,KEY_SCN
+		INC	DE
+		INC	HL
+		DJNZ	KEY_SCAN7
+TST_BUF:	LD	HL,(PUTKEY)
+		LD	A,(GETKEY)
+		SUB	L	 	; Возвращает 0 ,если в буфере есть символ
+		RET
+;
+; [A]= строка матрицы KEYBOARD
+; [B]= номер ряда с конца
+;
+KEY_SCN:	PUSH	HL
+		PUSH	DE
+		PUSH	BC
+		PUSH	AF
+		LD	A,0BH
+		SUB	B		; [A]= номер ряда с начала
+		ADD	A,A
+		ADD	A,A
+		ADD	A,A
+		LD	C,A		; [C]=(11-[B])*8
+		LD	B,08H
+		POP	AF	 	; [A]= строка матрицы
+KEY_SCN1:	RRA
+		PUSH	BC
+		PUSH	AF
+		CALL	C,KEY_SCN2	; Если клавиша нажата ,то CALL KEY_SCN2
+		POP	AF		; [C]= номер клавиши
+		POP	BC
+		INC	C
+		DJNZ	KEY_SCN1
+		POP	BC
+		POP	DE
+		POP	HL
+		RET
+;
+KEY_SCN2:	LD	A,C
+		CP	9	; Alt
+		RET	Z
+		CP	15H	; Shift
+		RET	Z
+		CP	17H	; Ctrl
+		RET	Z
+		CP	46H
+		JP	Z,CAPS
+		CP	4EH
+		JP	Z,RUS
+		LD	HL,(GETKEY)	; Ложит номер клавиши в буфер KEYBUF
+		LD	(HL),A
+		CALL	KEY_TSTEND	; Увеличивает адрес в буфере
+		LD	A,(PUTKEY)
+		CP	L
+		RET	Z		; Если переполнение буфера,то HL не меняется
+		LD	(GETKEY),HL
+		RET
+;
+KEY_TSTEND:	INC	HL	
+		LD	A,L
+		CP	0CDH
+		RET	NZ
+		LD	HL,KEYBUF
+		RET
+;
+RUS:		LD	HL,KEYMOD
+		BIT	4,(HL)
+		JR	Z,RUS1
+		RES	4,(HL)
+		XOR	A
+RUS2:		JP  	CHGRUS
+;
+RUS1:		SET	4,(HL)
+		LD	A,0FFH
+		JR	RUS2
+;
+CAPS:		LD	HL,KEYMOD
+		BIT	3,(HL)
+		JR	Z,CAPS1
+		RES	3,(HL)
+		LD	A,(SPCPORT)
+		SET	5,A
+		JR	CAPS2
+;
+CAPS1:		SET	3,(HL)
+		LD	A,(SPCPORT)
+		RES	5,A
+CAPS2:		LD	(SPCPORT),A
+		LD	B,7FH
+		AND	3FH
+		OR	80H
+		OUT	(C),A
+		RET
+;
+NORMTAB:	DEFB	01EH,01CH,01FH,039H,036H,033H,00DH,02EH
+		DEFB	01DH,000H,037H,038H,035H,031H,032H,030H
+		DEFB	07FH,05BH,00DH,05DH,034H,000H,05CH,000H
+	 	DEFB	05EH,02DH,040H,070H,03BH,03AH,02FH,02EH
+		DEFB	030H,039H,06FH,069H,06CH,06BH,06DH,02CH
+		DEFB	038H,037H,075H,079H,068H,06AH,06EH,020H
+		DEFB	036H,035H,072H,074H,067H,066H,062H,076H
+		DEFB	034H,033H,065H,077H,073H,064H,063H,078H
+		DEFB	031H,032H,01BH,071H,009H,061H,000H,07AH
+		DEFB	01EH,01FH,01DH,01CH,020H,00DH,000H,008H
+		DEFB	080H,081H,082H,083H,084H,018H,012H,05FH
+;
+SHIFTAB:	DEFB	01EH,01CH,01FH,039H,036H,033H,00DH,02EH
+		DEFB	01DH,000H,037H,038H,035H,031H,032H,030H
+		DEFB	07FH,07BH,00DH,07DH,034H,000H,07CH,000H
+		DEFB	07EH,03DH,060H,050H,02BH,02AH,03FH,03EH
+		DEFB	020H,029H,04FH,049H,04CH,04BH,04DH,03CH
+		DEFB	028H,027H,055H,059H,048H,04AH,04EH,020H
+		DEFB	026H,025H,052H,054H,047H,046H,042H,056H
+		DEFB	024H,023H,045H,057H,053H,044H,043H,058H
+		DEFB	021H,022H,01BH,051H,009H,041H,000H,05AH
+		DEFB	01EH,01FH,01DH,01CH,020H,00DH,000H,008H
+		DEFB	080H,081H,082H,083H,084H,018H,012H,05FH
+;
+RUSTAB:		DEFB	01EH,01CH,01FH,039H,036H,033H,00DH,02EH
+		DEFB	01DH,000H,037H,038H,035H,031H,032H,030H
+		DEFB	07FH,0DBH,00DH,0DDH,034H,000H,0DCH,000H
+		DEFB	0DEH,02DH,0C0H,0D0H,03BH,03AH,02FH,02EH
+		DEFB	030H,039H,0CFH,0C9H,0CCH,0CBH,0CDH,02CH
+		DEFB	038H,037H,0D5H,0D9H,0C8H,0CAH,0CEH,020H
+		DEFB	036H,035H,0D2H,0D4H,0C7H,0C6H,0C2H,0D6H
+		DEFB	034H,033H,0C5H,0D7H,0D3H,0C4H,0C3H,0D8H
+		DEFB	031H,032H,01BH,0D1H,009H,0C1H,000H,0DAH
+		DEFB	01EH,01FH,01DH,01CH,020H,00DH,000H,008H
+		DEFB	080H,081H,082H,083H,084H,018H,012H,0DFH
+;
+SHRUSTAB:	DEFB	01EH,01CH,01FH,039H,036H,033H,00DH,02EH
+		DEFB	01DH,000H,037H,038H,035H,031H,032H,030H
+		DEFB	07FH,0FBH,00DH,0FDH,034H,000H,0FCH,000H
+		DEFB	0FEH,03DH,0E0H,0F0H,02BH,02AH,03FH,03EH
+		DEFB	020H,029H,0EFH,0E9H,0ECH,0EBH,0EDH,03CH
+		DEFB	028H,027H,0F5H,0F9H,0E8H,0EAH,0EEH,020H
+		DEFB	026H,025H,0F2H,0F4H,0E7H,0E6H,0E2H,0F6H
+		DEFB	024H,023H,0E5H,0F7H,0F3H,0E4H,0E3H,0F8H
+		DEFB	021H,022H,01BH,0F1H,009H,0E1H,000H,0FAH
+		DEFB	01EH,01FH,01DH,01CH,020H,00DH,000H,008H
+		DEFB	080H,081H,082H,083H,084H,018H,012H,0DFH
+;
+;====================== Проверка буфера клавиатуры =============================
+;
+TST_KEYBUF:	PUSH	HL
+		CALL	TST_BUF
+		POP	HL
+		RET
+;
+;====================== Очистка буфера клавиатуры ==============================
+;
+CLR_KEYBUF:	PUSH	HL
+                LD      HL,KEYBUF
+                LD      (GETKEY),HL
+		LD	(PUTKEY),HL
+		POP	HL
+		RET
+;
+;== Возвращает в [B] с 3 бита CAPS,RUS,Shift,Ctrl,Alt, в [C]=[A] код клавиши ===
+;
+READ_KEY:	PUSH	HL
+		PUSH	DE
+		CALL	TST_KEYBUF
+		LD	C,0		; [A]=[C]=00, если не нажата
+		JR	Z,READ_KEY1
+		CALL	RD_KEY	
+		LD	HL,NORMTAB
+		LD	E,C
+		LD	D,0
+		ADD	HL,DE
+		LD	C,(HL)
+READ_KEY1:	LD	A,(KEYMOD)
+		LD	B,A
+		LD	A,C		; [A]=[C]
+		AND	A		; ZF=1, если не нажата
+		POP	DE
+		POP	HL
+		RET
+;
+RD_KEY:		LD	HL,(PUTKEY)
+		LD	C,(HL)		; [C]= код клавиши
+		CALL	KEY_TSTEND	; INC HL, проверка на конец
+		LD	(PUTKEY),HL
+		LD	HL,KEYMOD
+		LD	B,(HL)
+		RET
+;
+;========== Проверка состояния клавиши номер [A] ===============================
+;
+TEST_KEY:	PUSH	DE
+		PUSH	BC
+		LD	B,A
+		RRCA
+		RRCA
+		RRCA
+		AND	0FH
+		LD	D,A
+		CALL	SNSMAT
+		LD	A,B
+		AND	7
+		INC	A
+		LD	B,A
+		LD	A,E
+TEST_KEY1:	RRCA
+		DJNZ	TEST_KEY1
+		POP	BC
+		POP	DE
+		CCF
+		RET
+;
+;=========================== Проверка CTRL/C ===================================
+;
+BREAK:		LD	A,17H
+		CALL	TEST_KEY
+		RET	NC
+		LD	A,3EH
+		CALL	TEST_KEY
+		RET	NC
+		SCF
+		RET
+;
+;========== Ввод с клавиатуры без вывода курсора и ожидания нажатия в [A] ======
+;
+INKEY:		PUSH	HL
+		PUSH	DE
+		PUSH	BC
+		CALL	XFDCC
+		EI
+		CALL	TST_KEYBUF
+		CALL	NZ,INP_KEY
+		JR	INPUT3
+;
+;===== Ввод с клавиатуры в [A] с выводом курсора, ожидает нажатия клавиши ======
+;
+INPUT:		PUSH	HL
+		PUSH	DE
+		PUSH	BC
+		CALL	XFDD1
+		LD	A,(MODECUR)
+		BIT     7,A
+		CALL	NZ,PLACE_CUR
+INPUT1:		EI
+		CALL	TST_KEYBUF
+		JR	Z,INPUT1
+		LD	A,(MODECUR)
+		BIT	5,A
+		JR	Z,INPUT2
+		LD	A,(BEEPCNT)
+		AND	A
+		JR	NZ,INPUT2
+		LD	DE,090FH
+		CALL	WR_PSG
+		LD	DE,0900H
+		CALL	WR_PSG
+INPUT2:		CALL	INP_KEY
+		PUSH	AF
+		LD	A,(MODECUR)
+		BIT	7,A
+		CALL	NZ,ERASE_CUR
+		POP	AF
+INPUT3:		POP	BC
+		POP	DE
+		POP	HL
+		RET
+;
+INP_KEY:	CALL	RD_KEY
+		XOR	A
+		BIT	4,B		; RUS
+		JR	Z,INP_KEY1
+		OR	2
+INP_KEY1:	BIT	5,B		; Shift
+		JR	Z,INP_KEY2
+		INC	A
+INP_KEY2:	LD	B,A
+		ADD	A,A
+		ADD	A,B
+		LD	E,A
+		LD	D,0
+		LD	B,D
+		LD	HL,TABCOD1		; Адрес вектора 1-ой таблицы
+		ADD	HL,DE
+		LD	A,(HL)
+		INC	HL
+		LD	E,(HL)
+		INC	HL
+		LD	D,(HL)
+		EX	DE,HL	 	; [HL]= адрес таблицы клавиш
+		ADD	HL,BC
+		CALL	RDSLT		; [A]= код клавиши
+		EI
+		CP	40H
+		RET	C
+		LD	HL,KEYMOD
+		BIT	6,(HL)		; Ctrl
+		JR	Z,INP_KEY3
+	        AND	5FH
+		SUB	40H
+		RET
+;
+INP_KEY3:	BIT	3,(HL)		; CAPS
+		RET	Z
+		CP	41H
+		RET	C
+		CP	91
+		JR	C,INP_KEY4
+		CP	97
+		RET	C
+		CP	123
+		JR	C,INP_KEY4
+		CP	192
+		RET	C
+INP_KEY4:	XOR	20H
+		RET
+;
+;================ Устанавливает адрес таблицы NORMAL клавиш ====================
+;
+SET_NORM:	LD	(TABCOD1),A
+		LD	(TABCOD1+1),HL
+		RET
+;
+;================= Возвращает адрес таблицы NORMAL клавиш ======================
+;
+GET_NORM:	LD	A,(TABCOD1)
+		LD	HL,(TABCOD1+1)
+		RET
+;
+;================ Устанавливает адрес таблицы SHIFT клавиш =====================
+;
+SET_SHIFT:	LD	(TABCOD2),A
+		LD	(TABCOD2+1),HL
+		RET
+;================= Возвращает адрес таблицы SHIFT клавиш =======================
+;
+GET_SHIFT:	LD	A,(TABCOD2)
+		LD	HL,(TABCOD2+1)
+		RET
+;
+;================ Устанавливает адрес таблицы RUS клавиш =======================
+;
+SET_RUS:	LD	(TABCOD3),A
+		LD	(TABCOD3+1),HL
+		RET
+;
+;================= Возвращает адрес таблицы RUS клавиш =========================
+;
+GET_RUS:	LD	A,(TABCOD3)
+		LD	HL,(TABCOD3+1)
+		RET
+;
+;=========== Устанавливает адрес таблицы SHIFT & RUS клавиш ====================
+;
+SET_SHRUS:	LD	(TABCOD4),A
+		LD	(TABCOD4+1),HL
+		RET
+;
+;============ Возвращает адрес таблицы SHIFT & RUS клавиш ======================
+;
+GET_SHRUS:	LD	A,(TABCOD4)
+		LD	HL,(TABCOD4+1)
+		RET
+;
+;============ Установить скорость сканирования клавиатуры из [A] ===============
+;
+SET_SCAN:	LD	(SCAN),A
+		RET
+;
+;============ Вернуть скорость сканирования клавиатуры в [A] ===================
+;
+GET_SCAN:	LD	A,(SCAN)
+		RET
+;
+;================ Установить скорость автоповтора из [A] =======================
+;
+SET_REPT:	LD	(REPEAT),A
+		RET
+;
+;==================== Вернуть скорость автоповтора в [A] =======================
+;
+GET_REPT:	LD	A,(REPEAT)
+		RET
+;
+;================ Установить время задержки автоповтора из [A] =================
+;
+SET_DELAY:	LD	(DELAY),A
+		RET
+;
+;==================== Вернуть скорость автоповтора в [A] =======================
+;
+GET_DELAY:	LD	A,(DELAY)
+		RET
+;
+;===================== Включить отзвук клавиш ==================================
+;
+CLICKON:	LD	A,(MODECUR)
+		OR	20H
+		LD	(MODECUR),A
+		RET
+;
+;===================== Выключить отзвук клавиш =================================
+;
+CLICKOFF:	LD	A,(MODECUR)
+		AND	0DFH
+		LD	(MODECUR),A
+		RET
+;
+;===================== Вывод символа на принтер из [A] =========================
+;
+LPTOUT:		CALL	XFDDB
+		PUSH	AF
+		PUSH	DE
+		LD	E,A
+LPTOUT_1:	CALL	BREAK	
+		JR	C,LPTOUT_2
+		CALL	LPTSTT
+		JR	Z,LPTOUT_1
+		CALL	LPTOUT_3
+		POP	DE
+		POP	AF
+		AND	A
+		RET
+;
+LPTOUT_2:	LD	E,0DH
+		CALL	LPTOUT_3
+		POP	DE
+		POP	AF
+		SCF
+		RET
+;
+LPTOUT_3:	LD	D,0FH
+		CALL	WR_PSG
+		DI
+		LD	E,B
+		LD	B,0F6H
+		IN	A,(C)
+		AND	30H
+		OR	10H
+		OUT	(C),A
+		EX	(SP),HL
+		EX	(SP),HL
+		AND	20H
+		OUT	(C),A
+		LD	B,E
+		EI
+		RET
+;
+;===================== Проверка готовности принтера ============================
+;
+LPTSTT:		PUSH	BC
+		LD	B,0F5H
+		IN	A,(C)
+		POP	BC
+		RLCA
+		RLCA
+		CCF
+		SBC	A,A
+		RET
+;
+;===================== Инициализация мышки =====================================
+;
+MOUS_INIT:	LD	HL,MOUS_TAB
+		LD	DE,MOUSFLG
+		LD	BC,MOUS_TAB_END-MOUS_TAB+1
+		LDIR
+		LD	(MOUS_TIP),A
+                LD      HL,RX_BUF
+                LD      (RX_HEAD),HL
+                LD      BC,0EF40H
+                OUT     (C),C
+		LD	DE,033EH        ; Режим 3 канал A
+		CALL	WR_TIMER
+		LD	DE,0D0H
+		CALL	WR_TIMER        ; Запись мл. байта в канал A
+		LD	E,0
+		CALL	WR_TIMER        ; Запись ст. байта в канал A
+                LD      BC,0EF4EH
+                OUT     (C),C
+                LD      A,7
+                OUT     (C),A
+                LD      (RS_COM),A
+		LD	HL,MOUS_INT
+		LD	(XFDAE+1),HL
+                LD      HL,MOUS_ERR
+                LD      (XFDA4+1),HL
+		LD	A,0C3H
+		LD	(XFDA4),A
+                LD      (XFDAE),A
+		RET
+;
+MOUS_TAB:	DB	0		; MOUSFLG
+		DB	0FFH		; MOUS_K
+		DB	0		; MOUS_Y Relative
+		DB	0		; MOUS_X Relative
+		DW	0		; MOUS_Y1 Absolute
+		DW	0		; MOUS_X1 Absolute
+		DW	199		; MOUS_YMAX
+		DW	639		; MOUS_XMAX
+		DB	1		; MOUS_SCLY
+                DB      1               ; MOUS_SCLX
+MOUS_TAB_END:   DB      0               ; MOUS_TIP
+;
+;======================== Включить драйвер мыши ================================
+;
+MOUS_ON:	LD	A,0FFH
+		LD	(MOUSFLG),A
+		RET
+;
+;======================== Выключить драйвер мыши ===============================
+;
+MOUS_OFF:	XOR	A
+		LD	(MOUSFLG),A
+		RET
+;
+;======================= Установить границы по X ===============================
+;
+SET_MLIM:	LD	(MOUS_XMAX),HL
+		LD	(MOUS_YMAX),DE
+		LD	HL,0
+		LD	(MOUS_X1),HL
+		LD	(MOUS_Y1),HL
+		RET
+;
+;======================= Вернуть границы по X ==================================
+;
+GET_MLIM:	LD	HL,(MOUS_XMAX)
+		LD	DE,(MOUS_YMAX)
+		RET
+;
+;======================= Установить масштабирование ============================
+;
+SET_MSCAL:	LD	(MOUS_SCLY),HL
+		RET
+;
+;======================= Вернуть масштабирование ===============================
+;
+GET_MSCAL:	LD	HL,(MOUS_SCLY)
+		RET
+;
+;======================= Вернуть состояние MOUSE ===============================
+;
+GET_MOUS:	LD	A,(MOUS_K)
+		AND	7
+		LD	L,A
+		LD	A,(KEYMOD)
+		AND	0F8H
+		OR	L
+		LD	HL,(MOUS_X1)
+		LD	DE,(MOUS_Y1)
+		RET
+;
+;======================== Позиционирование мыши ================================
+;
+SET_MOUS:	LD	(MOUS_X1),HL
+		LD	(MOUS_Y1),DE
+		RET
+;
+;=====================  Обработчик прерываний  ================================
+;
+MOUS_INT:	LD	A,(MOUSFLG)
+		AND	A
+		RET	Z
+		LD      B,0EEH
+		IN	C,(C)           ; Чтение принятого байта
+		LD	HL,(RX_HEAD)	
+		LD	DE,RX_BUF
+		CALL	CPHLDE
+		JR	NZ,MOUS_INT1    ; Если ждем не первый байт ...
+		LD	A,C
+		AND	0F8H
+		CP	80H             ; Если это не начало посылки ...
+		RET	NZ
+		LD	(HL),C          ; Иначе записываем в буфер
+		INC	HL
+		LD	(RX_HEAD),HL	; Увеличиваем адрес в буфере
+		RET
+;
+MOUS_ERR:	LD	A,(RS_COM)
+		OR	10H
+		LD	B,0EFH
+		OUT	(C),A
+                LD      (RS_COM),A
+		LD	HL,RX_BUF	; Устанавливаем счетчик
+		LD	(RX_HEAD),HL
+		RET
+;
+MOUS_INT1:	LD	(HL),C		; Записываем в буфер
+		INC	HL		; Увеличиваем адрес
+		LD	DE,RX_BUF+5
+		CALL	CPHLDE		; Проверка на конец
+		JR	NC,MOUS_INT2
+		LD	(RX_HEAD),HL
+		RET
+;
+MOUS_INT2:	LD	IX,RX_BUF
+		LD	(RX_HEAD),IX
+		LD	A,(IX+00)
+		LD	(MOUS_K),A
+		LD	A,(IX+01)
+		ADD	A,(IX+03)
+		LD	HL,(MOUS_X1)
+		LD	B,A
+		LD	A,(MOUS_SCLX)
+		LD	C,A
+		LD	A,(MOUS_X)      ; Счетчик приращений
+		ADD	A,B		; Увеличиваем приращение
+		JP	M,MOUS_INT3     ; Координата отрицательна
+MOUS_INT21:	SUB	C		; Отнимаем масштаб
+		JR	C,MOUS_INT22	; Счетчик < масштаба
+		LD	(MOUS_X),A	; Остаток в счетчик
+		INC	HL		; Увеличиваем X
+		JR	MOUS_INT21
+;
+MOUS_INT22:	ADD	A,C		; Восстанавливаем счетчик
+		LD	(MOUS_X),A
+		LD	DE,(MOUS_XMAX)
+		CALL	CPHLDE		; Проверка на границу
+		JR	C,MOUS_INT33
+		EX	DE,HL
+		JR	MOUS_INT33
+;
+MOUS_INT3:	ADD	A,C
+		JR	C,MOUS_INT32
+		LD	(MOUS_X),A      ; Остаток в счетчик
+		DEC	HL		; Уменьшаем X
+		JR	MOUS_INT3
+;
+MOUS_INT32:	SUB	C
+		LD	(MOUS_X),A
+		LD	A,H
+		RLA
+		JR	NC,MOUS_INT33
+		LD	HL,0
+MOUS_INT33:	LD	(MOUS_X1),HL
+		LD	A,(IX+02)
+		ADD	A,(IX+04)
+		NEG
+		LD	HL,(MOUS_Y1)
+		LD	B,A
+		LD	A,(MOUS_SCLY)
+		LD	C,A
+		LD	A,(MOUS_Y)
+		ADD	A,B		; Увеличиваем приращение
+		JP	M,MOUS_INT5
+MOUS_INT41:	SUB	C		; Отнимаем масштаб
+		JR	C,MOUS_INT42
+		LD	(MOUS_Y),A      ; Остаток в счетчик
+		INC	HL		; Увеличиваем Y
+		JR	MOUS_INT41
+;
+MOUS_INT42:	ADD	A,C		; Восстанавливаем счетчик
+		LD	(MOUS_Y),A
+		LD	DE,(MOUS_YMAX)
+		CALL	CPHLDE		; Проверка на границу
+		JR	C,MOUS_INT53
+		EX	DE,HL
+		JR	MOUS_INT53
+;
+MOUS_INT5:	ADD	A,C
+		JR	C,MOUS_INT52
+		LD	(MOUS_Y),A	; Остаток в счетчик
+		DEC	HL		; Уменьшаем X
+		JR	MOUS_INT5
+;
+MOUS_INT52:	SUB	C
+		LD	(MOUS_Y),A
+		LD	A,H
+		RLA
+		JR	NC,MOUS_INT53
+		LD	HL,0
+MOUS_INT53:	LD	(MOUS_Y1),HL
+                JP      XFDC2
+;
+;== Инициализация RS-232: [A]=режим, [B]=скорость =============================
+;
+COM_INI:	DI
+		PUSH	AF	
+		PUSH	BC
+		LD	HL,RS_TAB
+		LD	DE,RX_HEAD
+		LD	BC,RS_COM-RX_HEAD+1
+		LDIR
+		LD	HL,RS_ERR
+		LD	(XFDA4+1),HL
+		LD	HL,CTS_INT
+		LD	(XFDA9+1),HL
+		LD	HL,RX_INT
+		LD	(XFDAE+1),HL
+		LD	HL,TX_INT
+		LD	(XFDB3+1),HL
+		LD	BC,0EF40H		; Сброс ВВ51		
+		OUT	(C),C
+		LD	DE,033EH
+		CALL	WR_TIMER		; Режим 3 канал A
+		LD	DE,037EH
+		CALL	WR_TIMER		; Режим 3 канал B
+		POP	BC
+		LD	A,B
+		AND	3	
+		ADD	A,A
+		LD	E,A
+		LD	D,0
+		LD	HL,RATE_TAB
+		ADD	HL,DE		
+		LD	E,(HL)
+		LD	D,0
+		CALL	WR_TIMER		; Мл. байт канала A
+		INC	D
+		CALL	WR_TIMER		; Мл. байт канала B
+		INC	HL
+		LD	E,(HL)		
+		LD	D,0
+		CALL	WR_TIMER		; Ст. байт канала A		
+		INC	D
+		CALL	WR_TIMER		; Ст. байт канала B
+		POP	AF
+		LD	E,A
+		AND	0FCH		
+		OR	2
+		LD	B,0EFH
+		OUT	(C),A			; Запись режима
+		LD	A,7			; Tx On, Rx On, DTR On
+		LD	(RS_COM),A
+		OUT	(C),A			; Запись команды
+		XOR	A
+		BIT	0,E
+		JR	Z,COM_INI1		
+		CPL
+COM_INI1:	LD	(RS_MODE),A
+                LD      A,0C3H
+                LD      (XFDA4),A
+                LD      (XFDA9),A
+                LD      (XFDAE),A
+                LD      (XFDB3),A
+		RET								
+;
+RS_TAB:		DW	RX_BUF			; RX_HEAD
+		DW	RX_BUF			; RX_TAIL
+		DW	TX_BUF			; TX_HEAD
+		DW	TX_BUF			; TX_TAIL
+		DB	0			; RS_STAT
+		DB	0			; RS_MODE
+		DB	0			; RX_XOFF
+		DB	0			; TX_XOFF
+		DB	0			; RS_COM
+;
+RATE_TAB:	DW	0341H,01A1H,00D0H,0068H
+;
+; Прерывание по ошибке
+;
+RS_ERR:		LD	A,(RS_COM)
+		OR	10H
+		LD	B,0EFH
+		OUT	(C),A
+		LD	(RS_COM),A
+		RET
+;
+; Прерывание по CTS
+;
+CTS_INT:	DI
+		LD	A,(RS_MODE)
+		AND	A
+		RET	NZ		; XON/XOFF Mode
+		LD	B,0EFH
+CTS_INT1:	IN	A,(C)
+		RLA	
+		JR	NC,CTS_INT1
+		LD	HL,(TX_HEAD)
+		LD	DE,(TX_TAIL)
+		CALL	CPHLDE
+		RET	Z
+		CALL	TEST_TX
+		LD	A,(HL)
+		DEC	B
+		OUT	(C),A
+		LD	(TX_HEAD),HL
+		RET
+;
+; Прерывание по готовности пер◀ ать байт
+;;
+TX_INT:		DI
+		LD	A,(RS_MODE)
+		AND	A
+		RET	Z
+				LD	A,(TX_XOFF)
+		RET	NZ
+		LD	HL,(TX_HEAD)
+		LD	DE,(TX_TAIL)
+		CALL	CPHLDE
+		RET	Z
+		CALL	TEST_TX
+		LD	A,(HL)
+		LD	B,0EEH
+		OUT	(C),A
+		LD	(TX_HEAD),HL
+		RET
+;
+; Прерывание по приему байта
+;
+RX_INT:		DI
+		LD	A,(RS_MODE)
+		AND	A
+		JR	NZ,RX_XON
+		CALL	RTS_OFF
+		LD	B,0EEH
+		IN	C,(C)
+		LD	HL,(RX_TAIL)
+		CALL	TEST_RX
+		LD	DE,(RX_HEAD)
+		CALL	CPHLDE
+		RET	Z
+		LD	(HL),C
+		LD	(RX_TAIL),HL
+		CALL	RS_LEN
+		LD	A,L
+		CP	30H
+		RET	Z
+RTS_ON:		LD	A,(RS_COM)
+		SET	1,A
+		LD	B,0EFH
+		OUT	(C),A
+		LD	(RS_COM),A
+		RET
+;
+RX_XON:		LD	B,0EEH
+		IN	C,(C)
+		LD	A,C
+		CP	11H
+		JR	NZ,RX_XON1
+		XOR	A
+		LD	(RX_XOFF),A
+		RET
+;
+RX_XON1:	CP	13H
+		JR	NZ,RX_XON2
+		LD	A,0FFH
+		LD	(RX_XOFF),A
+		RET
+;
+RX_XON2:	LD	HL,(RX_TAIL)
+		CALL	TEST_RX
+		LD	DE,(RX_HEAD)
+		CALL	CPHLDE
+		RET	Z
+		LD	(HL),C
+		LD	(RX_TAIL),HL
+		CALL	RS_LEN
+		LD	A,L
+		CP	30H
+		RET	NZ
+		LD	A,(RX_XOFF)
+		AND	A
+		RET	NZ
+		CPL
+		LD	(RX_XOFF),A
+		LD	C,13H
+		JP	RS_OUT
+;
+RTS_OFF:	LD	A,(RS_COM)
+		RES	1,A
+		LD	B,0EFH
+		OUT	(C),A
+		LD	(RS_COM),A
+		RET
+;
+TEST_TX:	INC	HL
+		LD	A,L
+		CP	TX_HEAD
+		RET	NZ
+		LD	HL,TX_BUF
+		RET
+;
+TEST_RX:	INC	HL
+		LD	A,L
+		CP	RX_HEAD
+		RET	NZ
+		LD	HL,RX_BUF
+		RET
+;
+RS_LEN:		LD	HL,(RX_TAIL)
+		LD	DE,(RX_HEAD)
+		XOR	A
+		SBC	HL,DE
+		RET	NC
+		LD	DE,40H
+		ADD	HL,DE
+		RET
+;
+;==================== Проверяет состояние RS-232 на ввод =======================
+;
+COM_IN_ST:	PUSH	HL
+		PUSH	DE
+		LD	HL,(RX_TAIL)
+		LD	DE,(RX_HEAD)
+		CALL	CPHLDE
+		POP	DE
+		POP	HL
+		LD	A,0FFH
+		RET	NZ
+		XOR	A
+		RET
+;
+;========================= Вводит байт с RS-232 ================================
+;
+COM_IN:		CALL	BREAK
+		RET	C
+		CALL	COM_IN_ST
+		JR	Z,COM_IN
+		DI
+		PUSH	HL
+		PUSH	DE
+		PUSH	BC
+		LD	HL,(RX_HEAD)
+		CALL	TEST_RX
+		LD	C,(HL)
+		LD	(RX_HEAD),HL
+		LD	A,(RS_MODE)
+		JR	Z,COM_IN1
+		LD	A,(RX_XOFF)
+		JR	Z,COM_IN1
+		CALL	RS_LEN
+		LD	A,L
+		CP	10H
+		JR	NZ,COM_IN1
+		LD	C,11H
+		CALL	RS_OUT
+		XOR	A
+		LD	(RX_XOFF),A
+COM_IN1:	LD	A,C
+		POP	BC
+		POP	DE
+		POP	HL
+		OR	A
+		EI
+		RET
+;
+;====================== Проверка готовности RS-232 на вывод ==================== 
+;
+COM_OUT_ST:	PUSH	HL	
+		PUSH	DE
+		LD	HL,(TX_TAIL)
+		CALL	TEST_TX
+		LD	DE,(TX_HEAD)	
+		CALL	CPHLDE
+		POP	DE
+		POP	HL
+		LD	A,0FFH
+		RET	NZ
+		XOR	A
+		RET
+;
+;====================== Вывод байта на RS-232 ==================================
+;
+COM_OUT:	PUSH	BC
+		PUSH	DE
+		PUSH	HL
+		LD	C,A
+COM_OUT2:	CALL	BREAK
+		JR	C,COM_OUT1
+		CALL	RS_OUT
+		JR	C,COM_OUT2
+COM_OUT1:	POP	HL
+		POP	DE
+		POP	BC
+		RET
+;
+RS_OUT:		DI
+		LD	A,(RS_MODE)
+		AND	A
+		JR	Z,RS_OUT1
+		LD	A,(TX_XOFF)
+		JR	NZ,RS_OUT2		; XOFF
+RS_OUT1:	LD	B,0EFH
+		IN	A,(C)
+		RRA	
+		JR	NC,RS_OUT2		; передается байт
+		LD	HL,(TX_HEAD)
+		LD	DE,(TX_TAIL)
+		CALL	CPHLDE
+		JR	NZ,RS_OUT2		; буфер не пуст
+		DEC	B
+		OUT	(C),C
+		JR	RS_OUT3
+;
+RS_OUT2:	LD	HL,(TX_TAIL)
+		CALL	TEST_TX
+		LD	DE,(TX_HEAD)
+		CALL	CPHLDE
+		JR	Z,RS_OUT4		; Buffer full
+		LD	(HL),C
+		LD	(TX_TAIL),HL
+RS_OUT3:	CALL	RTS_CHK
+		OR	A
+		EI
+		RET
+;
+RS_OUT4:	CALL	RTS_CHK		; Buffer full, SCF
+		SCF
+		EI
+		RET
+;
+RTS_CHK:	LD	A,(RS_MODE)
+		AND	A
+		RET	NZ
+		JP	RTS_ON

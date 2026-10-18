@@ -1,0 +1,1248 @@
+; BIOS.SPR
+;------------------  COPY_M_TO_V ---------------------------------;
+;
+;       Coping from memory to VRAM
+;
+;_X1		= string length from memory
+;_Y1		= source adress
+;_X2		= x2 destination coordinate
+;_Y2		= y2 destination coordinate
+;
+;_SRC_PAGE	= Memory Page
+;_DST_PAGE	= Screen Page
+;
+;_DX
+;_DY
+;
+;_WRT_MOD
+;
+;_CLIP          = Clipping flag
+;_XMN_CLIP	= Xmin
+;_XMX_CLIP	= Xmax
+;_YMN_CLIP	= Ymin
+;_YMX_CLIP	= Ymax
+;
+COPY_MV_END:	POP	HL
+		POP	HL
+		RET
+;
+COPY_M_TO_V:	LD	HL,(_Y1)
+		PUSH	HL
+		LD	HL,(_X1)
+		PUSH	HL
+		LD	HL,(_X2)
+		LD	(_X1),HL
+		LD	DE,(_DX)
+		ADD	HL,DE
+		DEC	HL
+		LD	(_X2),HL
+		LD	HL,(_Y2)
+		LD	(_Y1),HL
+		LD	DE,(_DY)
+		ADD	HL,DE
+		DEC	HL
+		LD	(_Y2),HL
+		CALL	TEST_XY_F
+		JR	C,COPY_MV_END
+;
+		LD	HL,(_Y2)
+		LD	DE,(_Y1)
+		OR	A
+		SBC	HL,DE
+		INC	HL
+		LD	(_DY),HL
+		LD	(_Y2),DE
+;
+		LD	HL,(_X2)
+		LD	DE,(_X1)
+		OR	A
+		SBC	HL,DE
+		INC	HL
+		LD	(_DX),HL
+		LD	(_X2),DE
+;
+		POP	HL
+		LD	(_X1),HL
+		POP	HL
+		LD	(_Y1),HL
+;
+		DI
+                LD	HL,(_Y2)
+		LD	DE,(_X2)
+		LD	A,(_DST_PAGE)
+		CALL	GR_GET_ADR
+		LD	B,7DH
+		IN	E,(C)
+		OR	0C0H
+		OUT	(C),A
+		INC	B
+		IN	D,(C)
+		PUSH	DE
+		LD	A,C
+		LD	(GR_DST_MASK),A
+		LD	A,(_SRC_PAGE)
+		OR	0C0H
+		OUT	(C),A
+		LD	DE,(_Y1)		;DE = BMP Header
+		SET	7,D
+		RES	6,D
+		PUSH	DE
+		POP	IX		
+		EXX
+		CALL	COPY_GET_PRM
+		CALL	COPY_MV_MAIN
+		POP	DE
+		LD	B,7DH
+		OUT	(C),E
+		INC	B
+		OUT	(C),D
+		EI
+		RET
+;
+COPY_MV_MAIN:   LD	A,E
+		AND	A
+		RET	Z
+		LD	A,(SCRMOD)
+		AND	A
+		JP	Z,COPY_MV_M_0
+		CP	3
+		JP	Z,COPY_MV_M_3
+;
+		LD	HL,(_DY)
+		LD	H,TAB_CONV_2
+COPY_MV_0:	PUSH	HL
+		PUSH	BC
+		PUSH	DE
+		PUSH	IX
+		EXX
+		PUSH	BC
+		PUSH	DE
+		PUSH	HL
+		EXX
+		LD	D,00
+COPY_MV_1:	LD	A,(IX+00)
+		INC	C
+		DEC	C
+		JR	Z,COPY_MV_5
+		LD	B,C
+COPY_MV_2:	SRL	D
+		RRA
+		DJNZ	COPY_MV_2
+COPY_MV_5:	LD	L,A
+		LD	A,(HL)
+		EXX
+		LD	D,A
+		CALL	WR_PIX
+		LD	E,0FFH
+		INC	HL
+		EXX
+		LD	D,(IX+00)
+	        INC	IX
+		DEC	E
+		JR	NZ,COPY_MV_1
+		LD	A,(IX+00)
+		INC	C
+		DEC	C
+		JR	Z,COPY_MV_6
+		LD	B,C
+COPY_MV_3:	SRL	D
+		RRA
+		DJNZ	COPY_MV_3
+COPY_MV_6:	LD	L,A
+		LD	A,(HL)
+		LD	B,7DH
+		EXX
+		LD	E,C
+		LD	D,A
+		CALL	WR_PIX
+		POP	HL
+		CALL	NEXT_LINE
+		POP	DE
+		POP	BC
+		EXX
+		POP	IX	
+		LD	DE,(_X1)
+		ADD	IX,DE
+		POP	DE
+		POP	BC
+		POP	HL
+		DEC	L
+		JR	NZ,COPY_MV_0
+		RET
+;
+COPY_MV_M_0:	LD	HL,(_DY)
+COPY_MV_0_0:	PUSH	HL
+		PUSH	BC
+		PUSH	DE
+		PUSH	IX
+		EXX
+		PUSH	BC
+		PUSH	DE
+		PUSH	HL
+		EXX
+		LD	D,00
+COPY_MV_0_1:	LD	A,(IX+00)
+		INC	C
+		DEC	C
+		JR	Z,COPY_MV_0_5
+		LD	B,C
+COPY_MV_0_2:	SRL	D
+		RRA
+		DJNZ	COPY_MV_0_2
+COPY_MV_0_5:	EXX
+		LD	D,A
+		CALL	WR_PIX
+		LD	E,0FFH
+		INC	HL
+		EXX
+		LD	D,(IX+00)
+		INC	IX
+		DEC	E
+		JR	NZ,COPY_MV_0_1
+		LD	A,(IX+00)
+		INC	C
+		DEC	C
+		JR	Z,COPY_MV_0_6
+		LD	B,C
+COPY_MV_0_3:	SRL	D
+		RRA
+		DJNZ	COPY_MV_0_3
+COPY_MV_0_6:	LD	B,7DH
+		EXX
+		LD	E,C
+		LD	D,A
+		CALL	WR_PIX
+		POP	HL
+		CALL	NEXT_LINE
+		POP	DE
+		POP	BC
+		EXX
+		POP	IX	
+		LD	DE,(_X1)
+		ADD	IX,DE
+		POP	DE
+		POP	BC
+		POP	HL
+		DEC	L
+		JR	NZ,COPY_MV_0_0
+		RET
+;
+COPY_MV_M_3:	LD	HL,(_DY)
+		LD	H,TAB_CONV_1
+		JP	COPY_MV_0
+;
+;COPY_GET_PRM:	Вычисляет параметры:	[E']=начальная маска
+;					[C']=конечная маска
+;					[C]=число сдвигов
+;				        [E]=число байт по X
+;
+COPY_GET_PRM:	LD	A,(SCRMOD)
+		AND	A
+		JR	Z,COPY_GETPRM_0
+		CP	3
+		JR	Z,COPY_GETPRM_3
+;
+		LD	A,(_X2)
+		LD	B,A
+		ADD	A,A
+		AND	7		; число сдвигов
+		LD	C,A
+		PUSH	BC
+;
+		LD	A,B
+		AND	3
+		LD	E,A
+		LD	D,00
+		LD	HL,TAB_ST_MSK_1
+		ADD	HL,DE
+		LD	A,(HL)
+                EXX
+		LD	E,A		; начальная маска
+		EXX
+;		
+		LD	HL,(_DX)
+		ADD	HL,HL
+		LD	B,00
+		ADD	HL,BC
+		LD	A,L
+		RRCA
+		AND	3
+;
+		SRL	H
+		RR	L
+		SRL	H
+		RR	L
+		SRL	H
+		RR	L
+		LD	E,L		; число байт по X
+;
+		LD	C,A
+		LD	B,00
+		LD	HL,TAB_ST_MSK_1
+		ADD	HL,BC
+		LD	A,(HL)
+		CPL
+		EXX
+		LD	C,A		; конечная маска
+		EXX
+		POP	BC
+		RET
+;
+COPY_GETPRM_0:	LD	A,(_X2)
+		AND	7		; число сдвигов
+		LD	C,A
+		PUSH	BC
+;
+		LD	B,0
+		LD	HL,TAB_ST_MSK_0
+		ADD	HL,BC
+		LD	A,(HL)
+                EXX
+		LD	E,A		; начальная маска
+		EXX
+;		
+		LD	HL,(_DX)
+		LD	B,00
+		ADD	HL,BC
+		LD	A,L
+		AND	7
+;
+		SRL	H
+		RR	L
+		SRL	H
+		RR	L
+		SRL	H
+		RR	L
+		LD	E,L		; число байт по X
+;
+		LD	C,A
+		LD	B,00
+		LD	HL,TAB_ST_MSK_0
+		ADD	HL,BC
+		LD	A,(HL)
+		CPL
+		EXX
+		LD	C,A		; конечная маска
+		EXX
+		POP	BC
+		RET
+;
+COPY_GETPRM_3:	LD	A,(_X2)
+		ADD	A,A
+		ADD	A,A
+		AND	7		; число сдвигов
+		LD	C,A
+		PUSH	BC
+;
+		AND	4
+		LD	A,0FFH
+		JR	Z,COPY_GET_3_1
+		LD	A,55H
+COPY_GET_3_1:	EXX
+		LD	E,A		; начальная маска
+		EXX
+;		
+		LD	HL,(_DX)
+		ADD	HL,HL
+		ADD	HL,HL
+		LD	B,00
+		ADD	HL,BC
+		LD	A,L
+		AND	4
+		JR	Z,COPY_GET_3_2
+		LD	A,0AAH
+COPY_GET_3_2:	EXX
+		LD	C,A		; конечная маска
+		EXX
+;
+		SRL	H
+		RR	L
+		SRL	H
+		RR	L
+		SRL	H
+		RR	L
+		LD	E,L		; число байт по X
+		POP	BC
+		RET
+;
+TAB_ST_MSK_0:	DB	0FFH,7FH,3FH,1FH,0FH,07H,03H,01H
+TAB_ST_MSK_1:	DB	0FFH,77H,33H,11H
+;
+;------------------  COPY_V_TO_M ---------------------------------;
+;
+;       Coping from VRAM to memory
+;
+;_X1		= x1 source coordinate
+;_Y1		= y1 source coordinate
+;_X2		= string length (bytes)
+;_Y2		= source adress
+;
+;_DX	        = width on X
+;_DY		= height on Y
+;
+;_SRC_PAGE
+;_DST_PAGE
+;
+COPY_V_TO_M:	DI
+                LD	HL,(_Y1)
+		LD	DE,(_X1)
+		LD	A,(_SRC_PAGE)
+		CALL	GR_GET_ADR
+		PUSH	HL
+		POP	IX		; [IX] = адрес VRAM
+		LD	B,7DH
+		IN	E,(C)
+		OR	0C0H
+		OUT	(C),A
+		INC	B
+		IN	D,(C)
+		PUSH	DE
+		LD	A,(_DST_PAGE)
+		OR	0C0H
+		OUT	(C),A
+		LD	DE,(_Y2)
+		SET	7,D
+		RES	6,D
+		PUSH	DE
+		POP	IY		; [IY] = адрес RAM
+		CALL	COPY_VM_GET
+		CALL	COPY_VM_MAIN
+		POP	DE
+		LD	B,7DH
+		OUT	(C),E
+		INC	B
+		OUT	(C),D
+		EI
+		RET
+;	
+COPY_VM_GET:	LD	A,(SCRMOD)
+		AND	A
+		JR	Z,COPY_VMGET_0
+		CP	3
+		JR	Z,COPY_VMGET_3
+		LD	A,(_X1)
+		ADD	A,A
+		AND	7
+		LD	C,A
+		LD	HL,(_DX)
+		ADD	HL,HL
+COPY_VMGET_2:	LD	B,0
+		ADD	HL,BC
+		SRL	H
+		RR	L
+		SRL	H
+		RR	L
+		SRL	H
+		RR	L
+		LD	E,L
+		RET
+;
+COPY_VMGET_0:	LD	A,(_X1)
+		AND	7
+		LD	C,A
+		LD	HL,(_DX)
+		JR	COPY_VMGET_2
+;
+COPY_VMGET_3:	LD	A,(_X1)
+		ADD	A,A
+		ADD	A,A
+		AND	7
+		LD	C,A
+		LD	HL,(_DX)
+		ADD	HL,HL
+		ADD	HL,HL
+		JR	COPY_VMGET_2
+;
+COPY_VM_MAIN:	EXX
+		LD	B,7DH
+		EXX
+		LD	A,(SCRMOD)		; [IX] = адрес VRAM
+		AND	A			; [IY] = адрес RAM
+		JP	Z,COPY_VM_M_0		; [E] = число байт по X
+		LD	H,TAB_CONV_3		; [C] = число сдвигов
+		CP	3	
+		JR	Z,COPY_VM_M_1
+		LD	H,TAB_CONV_4
+COPY_VM_M_1:	LD	A,(_DY)
+		LD	B,A
+COPY_VM_M_1_0:	PUSH	BC
+		PUSH	DE
+		PUSH	IY
+		PUSH	IX
+;
+COPY_VM_M_1_2:	LD	L,(IX+00)
+		LD	A,(HL)
+		LD	L,(IX+01)
+		LD	D,(HL)
+		INC	C
+		DEC	C
+		JR	Z,COPY_VM_M_1_3
+		LD	B,C
+COPY_VM_M_1_1:  SLA	D
+		RLA
+		DJNZ	COPY_VM_M_1_1
+COPY_VM_M_1_3:	LD	(IY+00),A
+		INC	IX
+		INC	IY
+		DEC	E
+		JR	NZ,COPY_VM_M_1_2
+;
+		POP	HL
+		CALL	NEXT_LINE
+		PUSH	HL
+		POP	IX
+		POP	IY
+		LD	DE,(_X2)
+		ADD	IY,DE
+		POP	DE
+		POP	BC
+		DJNZ	COPY_VM_M_1_0
+		RET
+;
+COPY_VM_M_0:	LD	A,(_DY)
+		LD	B,A
+COPY_VM_M_0_0:	PUSH	BC
+		PUSH	DE
+		PUSH	IY
+		PUSH	IX
+;
+COPY_VM_M_0_2:	LD	A,(IX+00)
+		LD	D,(IX+01)
+		INC	C
+		DEC	C
+		JR	Z,COPY_VM_M_0_3
+		LD	B,C
+COPY_VM_M_0_1:  SLA	D
+		RLA
+		DJNZ	COPY_VM_M_0_1
+COPY_VM_M_0_3:	LD	(IY+00),A
+		INC	IX
+		INC	IY
+		DEC	E
+		JR	NZ,COPY_VM_M_0_2
+;
+		POP	HL
+		CALL	NEXT_LINE
+		PUSH	HL
+		POP	IX
+		POP	IY
+		LD	DE,(_X2)
+		ADD	IY,DE
+		POP	DE
+		POP	BC
+		DJNZ	COPY_VM_M_0_0
+		RET
+;
+;------------------  COPY_V_TO_V ---------------------------------;
+;
+;       Coping from VRAM to VRAM
+;
+;_X1		= x1 source coordinate
+;_Y1		= y1 source coordinate
+;_X2		= x2 destination coordinate
+;_Y2		= y2 destination coordinate
+;
+;_DX	        = width on X
+;_DY		= height on Y
+;
+;_SRC_PAGE
+;_DST_PAGE
+;
+;
+COPY_V_TO_V:	DI
+                LD	HL,(_Y1)
+		LD	DE,(_X1)
+		LD	A,(_SRC_PAGE)
+		CALL	GR_GET_ADR
+		PUSH	HL
+		POP	IX		; [IX] = адрес VRAM Src
+		LD	B,7DH
+		IN	E,(C)
+		OR	0C0H
+		OUT	(C),A
+		INC	B
+		IN	D,(C)
+		PUSH	DE
+		LD	HL,(_Y2)
+		LD	DE,(_X2)
+		LD	A,(_DST_PAGE)
+		CALL	GR_GET_ADR
+		SET	7,H
+		RES	6,H		; [HL] = адрес VRAM Dst
+		EXX
+		OR	0C0H
+		LD	B,7EH
+		OUT	(C),A
+		CALL	COPY_VV_GET
+		CALL	COPY_VV_MAIN
+		POP	DE
+		LD	B,7DH
+		OUT	(C),E
+		INC	B
+		OUT	(C),D
+		EI
+		RET
+;
+;COPY_VV_GET:	Вычисляет параметры:	[E']=начальная маска
+;					[A']=конечная маска
+;					[C]=число сдвигов
+;				        [E]=число байт по X
+;
+COPY_VV_GET:	LD	A,(SCRMOD)
+		AND	A
+		JR	Z,COPY_VV_GET_0
+		CP	3
+		JP	Z,COPY_VV_GET_3
+;
+		LD	A,(_X1)
+		ADD	A,A
+		AND	7
+		LD	B,A
+		LD	A,(_X2)
+		LD	E,A
+		ADD	A,A
+		AND	7
+		SUB	B
+		LD	C,A		; число сдвигов
+		PUSH	BC
+;
+		LD	A,E
+		AND	3
+		LD	E,A
+		LD	D,00
+		LD	HL,TAB_ST_MSK_1
+		ADD	HL,DE
+		LD	A,(HL)
+                EXX
+		LD	E,A		; начальная маска
+		EXX
+;		
+		LD	HL,(_DX)
+		ADD	HL,HL
+		LD	A,(_X2)
+		ADD	A,A
+		AND	7
+		LD	C,A
+		LD	B,00
+		ADD	HL,BC
+		LD	A,L
+		RRCA
+		AND	3
+;
+		SRL	H
+		RR	L
+		SRL	H
+		RR	L
+		SRL	H
+		RR	L
+		LD	E,L		; число байт по X
+;
+		LD	C,A
+		LD	B,00
+		LD	HL,TAB_ST_MSK_1
+		ADD	HL,BC
+		EX	AF,AF'
+		LD	A,(HL)		; конечная маска
+		CPL
+		EX	AF,AF'
+		POP	BC
+		RET
+;
+COPY_VV_GET_0:	LD	A,(_X1)
+		AND	7
+		LD	B,A
+		LD	A,(_X2)
+		AND	7
+		LD	E,A
+		SUB	B
+		LD	C,A		; число сдвигов
+		PUSH	BC
+;
+		LD	D,00
+		LD	HL,TAB_ST_MSK_0
+		ADD	HL,DE
+		LD	A,(HL)
+                EXX
+		LD	E,A		; начальная маска
+		EXX
+;		
+		LD	HL,(_DX)
+		LD	D,00
+		ADD	HL,DE
+		LD	A,L
+		AND	7
+;
+		SRL	H
+		RR	L
+		SRL	H
+		RR	L
+		SRL	H
+		RR	L
+		LD	E,L		; число байт по X
+;
+		LD	C,A
+		LD	B,00
+		LD	HL,TAB_ST_MSK_0
+		ADD	HL,BC
+		EX	AF,AF'
+		LD	A,(HL)		; конечная маска
+		CPL
+		EX	AF,AF'
+		POP	BC
+		RET
+;
+COPY_VV_GET_3:	LD	A,(_X1)
+		ADD	A,A
+		ADD	A,A
+		AND	7
+		LD	B,A
+		LD	A,(_X2)
+		LD	E,A
+		ADD	A,A
+		ADD	A,A
+		AND	7
+		SUB	B
+		LD	C,A		; число сдвигов
+		PUSH	BC
+;
+		BIT	0,E
+		LD	A,0FFH
+		JR	Z,COPY_VV_GET_4
+		LD	A,055H
+COPY_VV_GET_4:  EXX
+		LD	E,A		; начальная маска
+		EXX
+;		
+		LD	HL,(_DX)
+		ADD	HL,HL
+		ADD	HL,HL
+		LD	A,(_X2)
+		ADD	A,A
+		ADD	A,A
+		AND	7
+		LD	C,A
+		LD	B,00
+		ADD	HL,BC
+		EX	AF,AF'
+		BIT	2,L
+		LD	A,00
+		JR	Z,COPY_VV_GET_5
+		LD	A,0AAH
+COPY_VV_GET_5:	EX	AF,AF'
+;
+		SRL	H
+		RR	L
+		SRL	H
+		RR	L
+		SRL	H
+		RR	L
+		LD	E,L		; число байт по X
+;
+		POP	BC
+		RET
+;
+;		[IX]=Src adress VRAM
+;		[HL']=Dst adress VRAM
+;		[E']=Нач. маска
+;		[A']=Кон. маска
+;		[E]=Число байт по X
+;		[C]=Число сдвигов
+;
+COPY_VV_MAIN:	LD      A,C
+		AND	A
+	        JP	M,COPY_VV_MAIN_L
+		LD	A,(SCRMOD)
+		AND	A
+		JP	Z,COPY_VV_MAIN_0
+		LD	D,TAB_CONV_1
+		EXX
+		LD	D,TAB_CONV_3
+		EXX
+		CP	3
+		JR	NZ,COPY_VV_MAIN_1
+		LD	D,TAB_CONV_2
+	        EXX
+	        LD	D,TAB_CONV_4
+		EXX
+COPY_VV_MAIN_1:	LD	A,(_DY)
+		LD	B,A
+COPY_VV_M_3:	PUSH	BC
+		PUSH	DE
+		LD	H,D
+		PUSH	IX
+		EXX
+		PUSH	DE
+		PUSH	HL
+		LD	B,D
+                EXX
+		LD	D,00
+COPY_VV_M_2:	LD	L,(IX+00)
+		LD	A,(HL)
+		INC	C
+		DEC	C
+		JR	Z,COPY_VV_M_4
+		LD	B,C
+COPY_VV_M_1:	SRL	D
+		RRA
+		DJNZ	COPY_VV_M_1
+COPY_VV_M_4:	EXX
+		LD	C,A
+		LD	A,(BC)
+		LD	D,A
+		CALL	WR_PIX
+		INC	HL
+		LD	E,0FFH
+		EXX
+		LD	L,(IX+00)
+		LD	D,(HL)
+		INC	IX
+		DEC	E
+		JR	NZ,COPY_VV_M_2
+		EXX
+		EX	AF,AF'
+		LD	E,A
+		EX	AF,AF'
+		EXX
+		LD	L,(IX+00)
+		LD	A,(HL)
+		INC	C
+		DEC	C
+		JR	Z,COPY_VV_M_5
+		LD	B,C
+COPY_VV_M_6:	SRL	D
+		RRA
+		DJNZ	COPY_VV_M_6
+COPY_VV_M_5:	LD	B,7EH
+		EXX
+		LD	C,A
+		LD	A,(BC)
+		LD	D,A
+		CALL	WR_PIX
+		POP	HL
+		CALL	NEXT_LINE
+		POP	DE
+		LD	B,7DH
+		EXX
+		POP	HL
+		CALL	NEXT_LINE
+		PUSH	HL
+		POP	IX
+		POP	DE
+		POP	BC
+		DJNZ	COPY_VV_M_3
+		RET
+;
+COPY_VV_MAIN_0:	LD	A,(_DY)
+		LD	B,A
+COPY_VV_M_0_3:	PUSH	BC
+		PUSH	DE
+		LD	H,D
+		PUSH	IX
+		EXX
+		PUSH	DE
+		PUSH	HL
+		LD	B,D
+                EXX
+		LD	D,00
+COPY_VV_M_0_2:	LD	A,(IX+00)
+		INC	C
+		DEC	C
+		JR	Z,COPY_VV_M_0_4
+		LD	B,C
+COPY_VV_M_0_1:	SRL	D
+		RRA
+		DJNZ	COPY_VV_M_0_1
+COPY_VV_M_0_4:	EXX
+		LD	D,A
+		CALL	WR_PIX
+		INC	HL
+		LD	E,0FFH
+		EXX
+		LD	D,(IX+00)
+		INC	IX
+		DEC	E
+		JR	NZ,COPY_VV_M_0_2
+		EXX
+		EX	AF,AF'
+		LD	E,A
+		EX	AF,AF'
+		EXX
+		LD	A,(IX+00)
+		INC	C
+		DEC	C
+		JR	Z,COPY_VV_M_0_5
+		LD	B,C
+COPY_VV_M_0_6:	SRL	D
+		RRA
+		DJNZ	COPY_VV_M_0_6
+COPY_VV_M_0_5:	LD	B,7EH
+		EXX
+		LD	C,A
+		LD	A,(BC)
+		LD	D,A
+		CALL	WR_PIX
+		POP	HL
+		CALL	NEXT_LINE
+		POP	DE
+		LD	B,7DH
+		EXX
+		POP	HL
+		CALL	NEXT_LINE
+		PUSH	HL
+		POP	IX
+		POP	DE
+		POP	BC
+		DJNZ	COPY_VV_M_0_3
+		RET
+;
+COPY_VV_MAIN_L:	NEG
+		LD	C,A
+		LD	A,(SCRMOD)
+		AND	A
+		JP	Z,COPY_VV_MAIN_2
+		LD	D,TAB_CONV_1
+		EXX
+		LD	D,TAB_CONV_3
+		EXX
+		CP	3
+		JR	NZ,COPY_VV_MAIN_3
+		LD	D,TAB_CONV_2
+	        EXX
+	        LD	D,TAB_CONV_4
+		EXX
+COPY_VV_MAIN_3:	LD	A,(_DY)
+		LD	B,A
+COPY_VV_L_3:	PUSH	BC
+		PUSH	DE
+		LD	H,D
+		PUSH	IX
+		EXX
+		PUSH	DE
+		PUSH	HL
+		LD	B,D
+                EXX
+COPY_VV_L_2:	LD	L,(IX+01)
+		LD	D,(HL)
+		LD	L,(IX+00)
+		LD	A,(HL)
+		INC	C
+		DEC	C
+		JR	Z,COPY_VV_L_4
+		LD	B,C
+COPY_VV_L_1:	SLA	D
+		RLA
+		DJNZ	COPY_VV_L_1
+COPY_VV_L_4:	EXX
+		LD	C,A
+		LD	A,(BC)
+		LD	D,A
+		CALL	WR_PIX
+		INC	HL
+		LD	E,0FFH
+		EXX
+		INC	IX
+		DEC	E
+		JR	NZ,COPY_VV_L_2
+		EXX
+		EX	AF,AF'
+		LD	E,A
+		EX	AF,AF'
+		EXX
+		LD	L,(IX+01)
+		LD	D,(HL)
+		LD	L,(IX+00)
+		LD	A,(HL)
+		INC	C
+		DEC	C
+		JR	Z,COPY_VV_L_5
+		LD	B,C
+COPY_VV_L_6:	SLA	D
+		RLA
+		DJNZ	COPY_VV_L_6
+COPY_VV_L_5:	LD	B,7EH
+		EXX
+		LD	C,A
+		LD	A,(BC)
+		LD	D,A
+		CALL	WR_PIX
+		POP	HL
+		CALL	NEXT_LINE
+		POP	DE
+		LD	B,7DH
+		EXX
+		POP	HL
+		CALL	NEXT_LINE
+		PUSH	HL
+		POP	IX
+		POP	DE
+		POP	BC
+		DJNZ	COPY_VV_L_3
+		RET
+;
+COPY_VV_MAIN_2:	LD	A,(_DY)
+		LD	B,A
+COPY_VV_L_0_3:	PUSH	BC
+		PUSH	DE
+		LD	H,D
+		PUSH	IX
+		EXX
+		PUSH	DE
+		PUSH	HL
+		LD	B,D
+                EXX
+COPY_VV_L_0_2:	LD	D,(IX+01)
+		LD	A,(IX+00)
+		INC	C
+		DEC	C
+		JR	Z,COPY_VV_L_0_4
+		LD	B,C
+COPY_VV_L_0_1:	SLA	D
+		RLA
+		DJNZ	COPY_VV_L_0_1
+COPY_VV_L_0_4:	EXX
+		LD	D,A
+		CALL	WR_PIX
+		INC	HL
+		LD	E,0FFH
+		EXX
+		INC	IX
+		DEC	E
+		JR	NZ,COPY_VV_L_0_2
+		EXX
+		EX	AF,AF'
+		LD	E,A
+		EX	AF,AF'
+		EXX
+		LD	D,(IX+01)
+		LD	A,(IX+00)
+		INC	C
+		DEC	C
+		JR	Z,COPY_VV_L_0_5
+		LD	B,C
+COPY_VV_L_0_6:	SLA	D
+		RLA
+		DJNZ	COPY_VV_L_0_6
+COPY_VV_L_0_5:	LD	B,7EH
+		EXX
+		LD	C,A
+		LD	A,(BC)
+		LD	D,A
+		CALL	WR_PIX
+		POP	HL
+		CALL	NEXT_LINE
+		POP	DE
+		LD	B,7DH
+		EXX
+		POP	HL
+		CALL	NEXT_LINE
+		PUSH	HL
+		POP	IX
+		POP	DE
+		POP	BC
+		DJNZ	COPY_VV_L_0_3
+		RET
+;
+;---------------------  SPRITES  ----------------------------------;
+;
+;UNDRAW_SPRITE:	Стирает спрайт
+;
+; [HL] 	 	Y coordinate
+; [DE] 	 	X coordinate
+;_SPRBUF	Pointer to the sprite buffer
+;
+UNDRAW_SPRITE:	LD	(_Y1),HL
+		LD	(_X1),DE
+		LD	A,(_DST_PAGE)
+		CALL	GR_GET_ADR
+;
+		DI
+		EXX
+		LD	B,7DH
+		IN	E,(C)
+		OR	0C0H
+		OUT	(C),A
+		INC	B
+		LD	A,(_SPRBUF+1)
+		IN	D,(C)
+		OR	0C0H
+		OUT	(C),A
+	        DEC     B
+		EXX
+		LD	DE,(_SPRBUF+2)
+		SET	7,D
+		RES	6,D
+		LD      A,(SCRMOD)
+		LD	C,3
+		AND	A
+		JR	Z,UNDRAW_SPR_1
+		LD	C,9
+		CP	3
+		JR      Z,UNDRAW_SPR_1
+		LD	C,5
+UNDRAW_SPR_1:	LD	B,16
+UNDRAW_SPR_2:	PUSH	BC
+		PUSH	HL
+		LD	B,0
+		EX	DE,HL
+		LDIR
+		EX	DE,HL
+		POP	HL
+		CALL	NEXT_LINE
+		POP	BC
+		DJNZ	UNDRAW_SPR_2
+		EXX
+		OUT	(C),E
+		INC	B
+		OUT	(C),D
+		EXX
+		EI
+		RET
+;
+;DRAW_SPRITE:	Выводит спрайт
+;
+; [HL] 	 	Y coordinate
+; [DE] 	 	X coordinate
+; [B]		FG_COLOR
+; [C]		BG_COLOR
+;_SDBPTR        Pointer to the SDB          	
+;_SPRBUF	Pointer to the sprite buffer
+;
+;SDB:		DW      Mask of the top line
+;		DW      Bit pattern of the top line
+;		. . . . .
+;		Contains 32 words
+;
+DRAW_SPRITE:	LD	A,B
+		CALL	TRANS_COLOR
+		LD	(GR_INK),A
+		LD	A,C
+		CALL	TRANS_COLOR
+		LD	(GR_PAPER),A
+		LD	A,(_DST_PAGE)
+		CALL	GR_GET_ADR
+		LD	B,A
+		PUSH	BC
+		PUSH	HL
+;
+		DI
+		EXX
+		LD	B,7DH
+		IN	E,(C)
+		OR	0C0H
+		OUT	(C),A
+		INC	B
+		LD	A,(_SPRBUF+1)
+		IN	D,(C)
+		OR	0C0H
+		OUT	(C),A
+		DEC	B
+		EXX
+		LD	DE,(_SPRBUF+2)
+		SET	7,D
+		RES	6,D
+		LD      A,(SCRMOD)
+		LD	C,3
+		AND	A
+		JR	Z,DRAW_SPR_1
+		LD	C,9
+		CP	3
+		JR      Z,DRAW_SPR_1
+		LD	C,5
+DRAW_SPR_1:	LD	B,16
+DRAW_SPR_2:	PUSH	BC
+		PUSH	HL
+		LD	B,0
+		LDIR
+		POP	HL
+		CALL	NEXT_LINE
+		POP	BC
+		DJNZ	DRAW_SPR_2
+		EXX
+		LD	B,7DH
+		OUT	(C),E
+		INC	B
+		OUT	(C),D
+		EXX
+		EI
+;
+		POP	HL
+		POP	BC
+		LD	A,B
+		DI
+		EXX
+		LD	B,7DH
+		IN	E,(C)
+		OR	0C0H
+		OUT	(C),A
+	        LD	A,(_SDBPTR+1)
+		INC	B
+		IN	D,(C)
+		OR	0C0H
+		OUT	(C),A
+		DEC	B
+		PUSH	DE
+		EXX
+		LD	DE,(_SDBPTR+2)
+		SET	7,D
+		RES	6,D
+		LD	IX,00
+		ADD	IX,DE
+		LD	B,16
+DRAW_S_VDI:	PUSH	BC
+		PUSH	HL
+		CALL	DRW_S_VDI
+		POP	HL
+		CALL	NEXT_LINE
+		INC	IX
+		INC	IX
+		INC	IX
+		INC	IX
+		POP	BC
+		DJNZ	DRAW_S_VDI
+DRAW_SPR_4:	EXX
+		LD	B,7DH
+		POP	DE
+		OUT	(C),E
+		INC	B
+		OUT	(C),D
+		EXX
+		EI
+		RET
+;
+DRW_S_VDI:	LD	B,16
+		EXX
+		LD	E,(IX+00)
+		LD	D,(IX+01)
+		LD	L,(IX+02)
+		LD	H,(IX+03)
+		EXX
+DRAW_S_1:	LD	D,0
+		LD	E,0
+DRAW_S_2:	EXX
+		ADD	HL,HL
+		JR	NC,DRAW_S_4
+		SLA	E
+		RL	D
+		EXX
+		LD	A,(GR_INK)
+DRAW_S_5:	AND	C
+		OR	D
+		LD	D,A			; Set color
+		LD	A,E
+		OR	C
+		LD	E,A			; Set mask
+DRAW_S_3:	DEC	B
+		JP	Z,WR_PIX_0
+		RRC	C
+		JR	NC,DRAW_S_2
+		CALL	WR_PIX_0
+		INC	HL
+		JR	DRAW_S_1
+;
+DRAW_S_4:	SLA	E
+		RL	D
+		EXX
+		JR	NC,DRAW_S_3
+		LD	A,(GR_PAPER)
+		JR	DRAW_S_5
+;

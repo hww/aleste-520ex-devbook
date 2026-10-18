@@ -42,15 +42,22 @@
 ### По Aleste и CPC
 
 - [CPCWiki](https://www.cpcwiki.eu) — главный ресурс. Страницы
-  [Aleste 520EX](https://www.cpcwiki.eu/index.php/Aleste_520EX),
+- [Gate Array](https://www.cpcwiki.eu/index.php/Gate_Array)
   [I/O Ports](https://www.cpcwiki.eu/index.php/I/O_Ports),
   [Expansions](https://www.cpcwiki.eu/index.php/Expansions).
 - [Amstrad CPC User Instructions](../library/AmstradCPC6128-hypertext-en-Sinewalker.pdf) —
   официальная документация.
+  [Aleste 520EX](https://www.cpcwiki.eu/index.php/Aleste_520EX),
 - [Soft968: The Amstrad CPC Firmware Guide](../library/The_Amstrad_CPC_Firmware_Guide.txt) —
   описание BIOS и прошивки. Полезно при работе с BIOS.
 - [The Amstrad CPC Memory Map](https://www.cpcalive.com/docs/amstrad_cpc_6128_memory_map.html) — карта памяти.
+- [Understanding the Amstrad CPC Video, RAM and Gate Array Subsystem](https://bread80.com/2021/06/03/understanding-the-amstrad-cpc-video-ram-and-gate-array-subsystem/)
+- [Notes on Video Display Units in Amstrad CPC](https://neuro-sys.github.io/2019/10/01/amstrad-cpc-crtc.html)
 
+### Файловый архив
+
+- [Aleste Files](https://github.com/hww/Aleste520EX)
+  
 ### Даташиты
 
 - [Z80](../datasheets/z80.pdf) — процессор.

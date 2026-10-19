@@ -1,7 +1,10 @@
 ; =============================================================================
-; MAGIC SOUND — STM player for ALESTE MC 520 EX
+; MAGIC SOUND � STM player for ALESTE MC 520 EX
 ; =============================================================================
 ; Build: sjasmplus --raw=magic.com magic.asm
+; 
+; This is a fully annotated disassembly of the Magic Sound player.
+; It is 100% byte-identical to the original mag.com.
 ; =============================================================================
 
 ; =============================================================================
@@ -39,11 +42,11 @@ DMAP_D      EQU     0FBDCH          ; channel D
 
 ; --- Memory addresses ---
 DATA        EQU     2000H           ; STM header / sample data base
-INST        EQU     2030H           ; instrument table
+INST        EQU     2030H           ; instrument table (32 bytes per entry)
 ORDER       EQU     2410H           ; order list
-I_DIV       EQU     2490H           ; per-instrument divisor table
+I_DIV       EQU     2490H           ; per-instrument divisor table (12 words each)
 T_VIBRATO   EQU     2D00H           ; vibrato waveform (runtime copy)
-TEMP_CONT   EQU     2F80H           ; tick counter
+TEMP_CONT   EQU     2F80H           ; tick counter (row timing)
 TEMP_PE     EQU     2F81H           ; ticks per row
 F_N_PAT     EQU     2F82H           ; "advance to next order" flag
 NEXT_ORD    EQU     2F84H           ; pointer to the next order byte
@@ -112,34 +115,49 @@ PIK_D       EQU     30F6H
 
 ; =============== S U B R O U T I N E =======================================
 
-
 entry:
                 jp      start
 ; ---------------------------------------------------------------------------
 
 start:
                 ld      sp, (6)                 ; restore SP from page-zero slot 6
-                call    int_ptr
-                call    clear
-                call    load_stm_file
-                call    restore
-                call    init_div
-                call    init_screen
-                call    sub_2E0
+                call    int_ptr                 ; init 8254 timers + 8237 DMA
+                call    clear                   ; zero out the work area
+                call    load_stm_file           ; open and parse the .STM file
+                call    restore                 ; copy init tables, set flags
+                call    init_div                ; precompute per-instrument divisors
+                call    init_screen             ; init screen mode and VU-meter
+                call    sub_2E0                 ; init marquee positions
                 ld      hl, demo_text
-                ld      (D_POINT2), hl
-                call    set_interrupt_hook
+                ld      (D_POINT2), hl          ; start of the marquee text
+                call    set_interrupt_hook      ; hook INT 38h and NMI
+
+; =========================== Player loop =====================================
+;
+; The main loop runs at whatever speed the CPU can manage; actual timing is
+; driven by the 50 Hz INT 38h handler (PRG_INT).
+;
+; Two modes:
+;   F_PRINT = 1  -> debug print: dump the four current notes to the screen
+;   F_PRINT = 0  -> normal play: scroll the marquee, update the VU-meters
+;
+; Key handling:
+;   20h (space)  -> toggle F_PRINT
+;   0Dh (CR)     -> force "advance to next order" on the next tick
+;   anything else-> stop playback, restore BIOS vectors, return to CP/M
+; -----------------------------------------------------------------------------
 
 loop:
                 ei
                 ld      a, (F_PRINT)
                 or      a
                 jr      z, update_player
+                ; --- Debug-print mode: dump all four channels' current notes ---
                 ld      a, (F_TEMP)
                 or      a
-                jp      z, loc_1ED
+                jp      z, loc_1ED                 ; no new row yet
                 sub     a
-                ld      (F_TEMP), a
+                ld      (F_TEMP), a              ; consume the "new row" flag
                 ld      ix, SEG_A
                 call    print_curent_note
                 ld      ix, SEG_B
@@ -153,9 +171,10 @@ loop:
 ; ---------------------------------------------------------------------------
 
 update_player:
+                ; --- Normal play mode: advance marquee, redraw VU-meters ---
                 ld      a, (F_TEMP)
                 or      a
-                jp      z, loc_182
+                jp      z, loc_182                 ; no new row yet
                 sub     a
                 ld      (F_TEMP), a
                 ld      hl, (D_POINT2)
@@ -163,16 +182,16 @@ update_player:
                 inc     hl
                 or      a
                 jr      nz, loc_170
-                ld      hl, 11BBh
+                ld      hl, 11BBh                  ; wrap to start of text
                 ld      a, (hl)
 
 loc_170:
                 ld      (D_POINT2), hl
                 ld      e, a
-                ld      a, 2                    ; Graphics mode 2
+                ld      a, 2                       ; Graphics mode 2
                 ld      ix, 0C6h
                 ld      iy, 800h
-                call    1Ch
+                call    1Ch                        ; BIOS: output character
                 ei
 
 loc_182:
@@ -181,10 +200,19 @@ loc_182:
                 jp      loc_1ED
 ; End of function entry
 
-
 ; =============== S U B R O U T I N E =======================================
 
-
+; -----------------------------------------------------------------------------
+; LINE / draw_vu_meter
+;   Draws four horizontal VU-meter bars at fixed VRAM addresses.
+;
+;   Each bar is drawn vertically across 8 raster lines (stride 0x800).
+;   The bar is 16 cells wide; filled cells use color 0xFC, empty use 0x00.
+;
+; Input:  A  = peak volume (0..63)
+;         HL = VRAM address of the bar's left edge
+; Clobbers: AF, BC, DE, HL
+; -----------------------------------------------------------------------------
 draw_vu_meter:
                 ld      a, (PIK_A)
                 ld      hl, 95F4h
@@ -201,19 +229,17 @@ draw_vu_meter:
                 ret
 ; End of function draw_vu_meter
 
-
 ; =============== S U B R O U T I N E =======================================
 
-
 draw_line:
-                ld      bc, 7EC0h               ; Gate Array: select palette index
+                ld      bc, 7EC0h                  ; Gate Array: select palette index
                 out     (c), c
                 rrca
                 rrca
                 and     0Fh
                 ld      b, a
                 inc     b
-                ld      a, 0Ch                  ; VU-meter bar color
+                ld      a, 0Ch                     ; VU-meter bar color
                 ld      c, 0CCh
                 ld      de, 800h
 
@@ -247,7 +273,7 @@ loc_1D7:
                 sbc     hl, de
                 inc     hl
                 djnz    loc_1D7
-                ld      bc, 7EC6h               ; Gate Array: restore normal mode
+                ld      bc, 7EC6h                  ; Gate Array: restore normal mode
                 out     (c), c
                 ret
 ; End of function draw_line
@@ -262,7 +288,7 @@ loc_1ED:
                 jp      z, loop
                 jr      loc_227
 ; ---------------------------------------------------------------------------
-                cp      20h                     ; space
+                cp      20h                        ; space
                 jr      nz, loc_227
                 ld      a, (F_PRINT)
                 cpl
@@ -284,30 +310,40 @@ loc_21E:
 ; ---------------------------------------------------------------------------
 
 loc_227:
-                cp      0Dh                     ; CR
+                cp      0Dh                        ; CR
                 jr      nz, loc_233
                 ld      a, 1
-                ld      (F_N_PAT), a
+                ld      (F_N_PAT), a               ; force "advance to next order"
                 jp      loop
 ; ---------------------------------------------------------------------------
 
 loc_233:
                 sub     a
-                ld      (SOUND_ON), a
-                call    int_ptr
-                call    remove_interrupt_hook
+                ld      (SOUND_ON), a              ; pause the player
+                call    int_ptr                    ; silence all DMA channels
+                call    remove_interrupt_hook      ; restore BIOS INT/NMI vectors
                 ld      h, 40h
                 ld      a, 5
-                call    24h
+                call    24h                        ; MSX-DOS: 0024h hook
                 ld      a, 0
                 ld      bc, 300h
                 ld      ix, 81h
                 ld      iy, 800h
                 call    1Ch
-                rst     0
+                rst     0                          ; warm boot back to MSX-DOS
 
 ; =============== S U B R O U T I N E =======================================
 
+; -----------------------------------------------------------------------------
+; STAR_ENABLE
+;   Animate the two scrolling marquees. Each call advances the marquee by
+;   one pixel (by shifting the bit mask) and redraws it via SS_3 / SS_31.
+;
+;   STAR_ON  operates on the top marquee (STAR_S, XOR with STAR_M)
+;   STAR_ON1 operates on the bottom marquee (STAR_D, XOR with 0x70)
+;
+; Clobbers: AF, BC, DE, HL
+; -----------------------------------------------------------------------------
 star_enable:
                 ld      hl, (STAR_M)
                 push    hl
@@ -316,7 +352,7 @@ star_enable:
                 inc     hl
                 ld      a, h
                 and     7
-                or      0B8h
+                or      0B8h                       ; keep within 0B800h..0BFFFh
                 ld      h, a
                 ld      (STAR_M), hl
                 ld      de, 180h
@@ -333,7 +369,7 @@ star_enable:
                 ld      (S_MASK), a
                 ld      (D_POINT_1), a
                 jr      nc, loc_29A
-                ld      a, 0Ch                  ; marquee shift mask update
+                ld      a, 0Ch                     ; marquee shift mask update
                 ld      (S_MASK), a
                 ld      (D_POINT_1), a
                 inc     hl
@@ -353,15 +389,15 @@ loc_29A:
                 call    set_starts
                 ld      hl, (STAR_S)
                 push    hl
-                ld      a, (D_POINT)       ; <--- ИСПРАВЛЕНО
+                ld      a, (D_POINT)
                 push    af
                 rrca
                 ld      (S_MASK), a
-                ld      (D_POINT), a       ; <--- ИСПРАВЛЕНО
+                ld      (D_POINT), a
                 jr      nc, loc_2CE
-                ld      a, 8
+                ld      a, 8                       ; marquee shift mask update
                 ld      (S_MASK), a
-                ld      (D_POINT), a       ; <--- ИСПРАВЛЕНО
+                ld      (D_POINT), a
                 inc     hl
                 ld      a, h
                 and     7
@@ -380,22 +416,24 @@ loc_2CE:
                 ret
 ; End of function star_enable
 
-
 ; =============== S U B R O U T I N E =======================================
 
-
+; -----------------------------------------------------------------------------
+; SET_STAR
+;   Initialise the top marquee: position = HL, mask = 1.
+; -----------------------------------------------------------------------------
 sub_2E0:
                 ld      hl, 0B800h
                 ld      (STAR_S), hl
                 ld      (STAR_D), hl
                 ld      (STAR_M), hl
                 ld      a, 8
-                ld      (D_POINT), a       ; <--- D_POINT (не _2!)
+                ld      (D_POINT), a
                 ld      a, 0Ch
                 ld      (D_POINT_1), a
                 ld      a, 0Eh
-                ld      (D_POINT_2), a     ; <--- D_POINT_2
-                ld      a, (D_POINT)       ; <--- D_POINT
+                ld      (D_POINT_2), a
+                ld      a, (D_POINT)
                 ld      (S_MASK), a
                 ld      hl, (STAR_S)
                 ld      de, 100h
@@ -405,7 +443,7 @@ sub_2E0:
                 ld      hl, (STAR_D)
                 ld      de, 140h
                 call    set_starts
-                ld      a, (D_POINT_2)     ; <--- D_POINT_2
+                ld      a, (D_POINT_2)
                 ld      (S_MASK), a
                 ld      hl, (STAR_M)
                 ld      de, 180h
@@ -413,10 +451,18 @@ sub_2E0:
                 ret
 ; End of function sub_2E0
 
-
 ; =============== S U B R O U T I N E =======================================
 
-
+; -----------------------------------------------------------------------------
+; SS_3
+;   Draw the top marquee at (STAR_S) with the current STAR_M mask.
+;   The marquee is 30 rows tall, 30 characters wide. Each row is XORed
+;   with STAR_M at (HL) and its mirror address (HL XOR 0FFFFh).
+;
+; Input:  HL = start address (0B800h + row*0x??)
+;         STAR_M = XOR mask (0..15)
+; Clobbers: AF, BC, DE, HL
+; -----------------------------------------------------------------------------
 set_starts:
                 ld      bc, 7EC0h
                 out     (c), c
@@ -445,10 +491,14 @@ loc_330:
                 ret
 ; End of function set_starts
 
-
 ; =============== S U B R O U T I N E =======================================
 
-
+; -----------------------------------------------------------------------------
+; CLEAR
+;   Zeroes the work area from DATA (2000h) up to 4000h.
+;   This covers the STM header, instrument table, order list, divisor table,
+;   and all per-channel state. Must run before LOAD and RESTORE.
+; -----------------------------------------------------------------------------
 clear:
                 di
                 ld      hl, DATA
@@ -459,39 +509,91 @@ clear:
                 ret
 ; End of function clear
 
-
 ; =============== S U B R O U T I N E =======================================
 
-
+; -----------------------------------------------------------------------------
+; RESTORE
+;   Copy initialisation tables into the work area and set up playback state.
+; -----------------------------------------------------------------------------
 restore:
-                ld      a, (DATA+32)
+                ld      a, (DATA+32)               ; tempo byte from STM header
                 cp      10h
                 jr      nc, loc_367
-                ld      a, 10h
+                ld      a, 10h                     ; clamp tempo to >= 16
 
 loc_367:
                 srl     a
                 srl     a
                 srl     a
-                srl     a
+                srl     a                          ; A = tempo / 16 = ticks per row
                 ld      (TEMP_CONT), a
                 ld      (TEMP_PE), a
                 ld      hl, vibrato_table
                 ld      de, T_VIBRATO
-                ld      bc, 200h
-                ldir
+                ld      bc, 200h                   ; 512 bytes = 256 words
+                ldir                               ; copy vibrato waveform
                 ld      a, 1
-                ld      (F_N_PAT), a
+                ld      (F_N_PAT), a               ; force order advance on first tick
                 ld      hl, ORDER
-                ld      (NEXT_ORD), hl
-                ld      a, (DATA+34)
+                ld      (NEXT_ORD), hl             ; start at the first order
+                ld      a, (DATA+34)               ; global volume from STM header
                 ld      (VOL_1234), a
                 ld      a, 1
-                ld      (SOUND_ON), a
+                ld      (SOUND_ON), a              ; unpause
                 ret
 ; End of function restore
 
 ; ---------------------------------------------------------------------------
+; START OF CHANNEL SETUP BLOCK (A, B, C, D)
+;
+; This block programs one DMA channel from its state block.
+; It is called once per tick (50 Hz) from the interrupt handler.
+;
+; C equivalent (conceptually):
+;
+;   void ma_start(chan_t *c, int stop, int dma, int tim,
+;                 int dst, uint8_t bmod, int pvol, int dmap) {
+;       if (c->force_off) {                // F_CH_ON
+;           out(DMAMASK, stop);
+;           out(pvol, 0x40);               // silence
+;           goto done;
+;       }
+;       if (c->start) {                    // F_START
+;           out(DMAMASK, stop);
+;           c->restart = c->loop;          // F_RESTART = F_LOOP
+;           if (c->loop) {
+;               c->nmi_start  = c->start_1;
+;               c->nmi_length = c->length_1;
+;           }
+;           out(dma,   c->start_0);        // 8237 base address
+;           out(dma+1, c->length_0);       // 8237 count
+;       }
+;       if (c->div) {                      // F_DIV
+;           out(tim, c->sng_div);          // 8254 divisor
+;       }
+;       if (c->vol) {                      // F_VOL
+;           uint8_t v = c->sng_vol;
+;           if (v == 0 || v == 1) v = 0x40; // special "max" value
+;           out(pvol, v);
+;           v &= 0x3F;
+;           if (v > c->peak) c->peak = v;  // PIK_VOL for the VU-meter
+;       }
+;       if (c->start) {
+;           // 4-byte page mapper, inverted and decrementing
+;           uint8_t p = ~c->s_map;
+;           out(dmap+0, p);
+;           out(dmap+1, p-1);
+;           out(dmap+2, p-2);
+;           out(dmap+3, p-3);
+;           out(DMAMOD, bmod);             // 48h/49h/4Ah/4Bh = single, inc, read
+;           out(DMAMASK, dst);             // unmask this channel -> start
+;       }
+;   done:
+;       c->start = c->div = c->vol = c->loop = c->force_off = 0;
+;   }
+; ---------------------------------------------------------------------------
+
+; --- Channel A ---
                 ld      a, (SEG_A+F_CH_ON)
                 or      a
                 jr      z, loc_3AC
@@ -502,6 +604,7 @@ loc_367:
                 out     (c), a
                 jp      loc_440
 ; ---------------------------------------------------------------------------
+
 loc_3AC:
                 ld      a, (SEG_A+F_START)
                 or      a
@@ -514,7 +617,7 @@ loc_3AC:
                 or      a
                 jr      z, loc_3CE
                 ld      hl, (SEG_A+START_1)
-                ld      (SEG_A), hl
+                ld      (SEG_A), hl                ; NMI_START
                 ld      hl, (SEG_A+LENGHT_1)
                 ld      (SEG_A+NMI_LENGHT), hl
 
@@ -580,7 +683,7 @@ loc_417:
                 dec     a
                 out     (c), a
                 ld      bc, DMAMOD
-                ld      a, 48h
+                ld      a, 48h                     ; 8237 mode: single, inc, read (ch A)
                 out     (c), a
                 ld      bc, DMAMASK
                 ld      a, 0
@@ -593,6 +696,8 @@ loc_440:
                 ld      (SEG_A+F_VOL), a
                 ld      (SEG_A+F_LOOP), a
                 ld      (SEG_A+F_CH_ON), a
+
+; --- Channel B ---
                 ld      a, (SEG_B+F_CH_ON)
                 or      a
                 jr      z, loc_465
@@ -682,7 +787,7 @@ loc_4D0:
                 dec     a
                 out     (c), a
                 ld      bc, DMAMOD
-                ld      a, 49h
+                ld      a, 49h                     ; 8237 mode: single, inc, read (ch B)
                 out     (c), a
                 ld      bc, DMAMASK
                 ld      a, 1
@@ -695,6 +800,8 @@ loc_4F9:
                 ld      (SEG_B+F_VOL), a
                 ld      (SEG_B+F_LOOP), a
                 ld      (SEG_B+F_CH_ON), a
+
+; --- Channel C ---
                 ld      a, (SEG_C+F_CH_ON)
                 or      a
                 jr      z, loc_51E
@@ -784,7 +891,7 @@ loc_589:
                 dec     a
                 out     (c), a
                 ld      bc, DMAMOD
-                ld      a, 4Ah
+                ld      a, 4Ah                     ; 8237 mode: single, inc, read (ch C)
                 out     (c), a
                 ld      bc, DMAMASK
                 ld      a, 2
@@ -797,6 +904,8 @@ loc_5B2:
                 ld      (SEG_C+F_VOL), a
                 ld      (SEG_C+F_LOOP), a
                 ld      (SEG_C+F_CH_ON), a
+
+; --- Channel D ---
                 ld      a, (SEG_D+F_CH_ON)
                 or      a
                 jr      z, loc_5D7
@@ -886,7 +995,7 @@ loc_642:
                 dec     a
                 out     (c), a
                 ld      bc, DMAMOD
-                ld      a, 4Bh
+                ld      a, 4Bh                     ; 8237 mode: single, inc, read (ch D)
                 out     (c), a
                 ld      bc, DMAMASK
                 ld      a, 3
@@ -899,11 +1008,14 @@ loc_66B:
                 ld      (SEG_D+F_VOL), a
                 ld      (SEG_D+F_LOOP), a
                 ld      (SEG_D+F_CH_ON), a
+
+                ; --- Row tick counter ---
                 ld      a, (TEMP_CONT)
                 or      a
                 jr      z, loc_6A4
                 dec     a
                 ld      (TEMP_CONT), a
+                ; mid-row: run per-tick effects on all four channels
                 ld      ix, SEG_A
                 call    command
                 ld      ix, SEG_B
@@ -925,15 +1037,16 @@ loc_6A4:
                 dec     a
 
 loc_6B2:
-                ld      (TEMP_CONT), a
+                ld      (TEMP_CONT), a             ; reload tick counter
                 ld      a, (F_N_PAT)
                 or      a
                 jr      z, loc_6C2
                 sub     a
                 ld      (F_N_PAT), a
-                call    next_order
+                call    next_order                 ; advance to the next order
 
 loc_6C2:
+                ; --- Fetch next note for each channel ---
                 ld      ix, SEG_A
                 call    next_note
                 ld      ix, SEG_B
@@ -943,7 +1056,7 @@ loc_6C2:
                 ld      ix, SEG_D
                 call    next_note
                 ld      a, 0FFh
-                ld      (F_TEMP), a
+                ld      (F_TEMP), a                ; signal "new row" to main loop
 
 int_hook_buffer:
                 nop
@@ -956,20 +1069,32 @@ int_hook_buffer:
 
 ; =============== S U B R O U T I N E =======================================
 
-
+; -----------------------------------------------------------------------------
+; NEXT_NOT
+;   Advance one channel by one row: read the 4-byte note record from the
+;   pattern, decode it into N_NOTE / N_SAMPLE / N_VOLUME / N_COMAND / N_PARAM,
+;   call GET_NOT to prepare DMA parameters, and handle arpeggio setup.
+;
+; Pattern row format (4 bytes per channel, 4 channels = 16 bytes per row):
+;   byte 0: note byte (with octave in high nibble; 0xFF = no note,
+;           0xFE = key off)
+;   byte 1: bits 7..3 = instrument number, bits 2..0 = high 3 bits of volume
+;   byte 2: bits 7..3 = low 5 bits of volume, bits 3..0 = command
+;   byte 3: command parameter
+; -----------------------------------------------------------------------------
 next_note:
                 inc     (ix+PAT_POINT)
                 ld      a, (ix+PAT_POINT)
-                cp      40h                     ; 64 rows per pattern
+                cp      40h                        ; 64 rows per pattern
                 jr      c, loc_6F9
                 ld      a, 1
-                ld      (F_N_PAT), a
+                ld      (F_N_PAT), a               ; signal "advance order"
 
 loc_6F9:
                 ld      l, (ix+ADR_PAT)
                 ld      h, (ix+ADR_PAT+1)
                 push    hl
-                pop     iy
+                pop     iy                         ; IY = pointer to the row
                 ld      a, (iy+0)
                 ld      (ix+N_NOTE), a
                 ld      a, (iy+1)
@@ -993,38 +1118,46 @@ loc_6F9:
                 push    iy
                 pop     hl
                 ld      de, 10h
-                add     hl, de
+                add     hl, de                     ; advance to next row (16 bytes)
                 ld      (ix+ADR_PAT), l
                 ld      (ix+ADR_PAT+1), h
                 call    get_note
                 ld      a, (ix+N_COMAND)
                 cp      9
                 jp      nz, loc_74E
-                call    command
+                call    command                    ; command 9 = tremor, run now
                 ret
 ; ---------------------------------------------------------------------------
 
 loc_74E:
                 cp      0Ah
                 ret     nz
-                ld      (ix+F_ARP), 1
+                ld      (ix+F_ARP), 1              ; command 10 = arpeggio
                 ld      a, (ix+N_PARAM)
                 and     0F0h
                 srl     a
                 srl     a
                 srl     a
-                srl     a
+                srl     a                          ; high nibble = arpeggio period
                 ld      (ix+TIM_ARP), a
                 ret
 ; End of function next_note
 
-
 ; =============== S U B R O U T I N E =======================================
 
-
+; -----------------------------------------------------------------------------
+; GET_NOT
+;   Decode the current note into per-channel DMA parameters.
+;
+; Special note values:
+;   0xFE -> key off (F_CH_ON = 1, channel will be silenced)
+;   0xFF -> no note (skip frequency update, keep playing)
+;
+; Command 7 -> portamento (only update SEK_DIV, not SNG_DIV)
+; -----------------------------------------------------------------------------
 get_note:
                 ld      a, (ix+N_VOLUME)
-                cp      41h                     ; 0x41 = "use instrument default"
+                cp      41h                        ; 0x41 = "use instrument default"
                 jr      nc, loc_777
                 ld      (ix+SNG_VOL), a
                 ld      (ix+SEK_VOL), a
@@ -1033,13 +1166,14 @@ get_note:
 loc_777:
                 ld      a, (ix+N_COMAND)
                 cp      7
-                jp      z, loc_849
+                jp      z, loc_849                 ; command 7 = portamento
                 ld      a, (ix+N_NOTE)
                 cp      0FFh
-                jp      z, loc_845
+                jp      z, loc_845                 ; no note -> just dispatch GOTO
                 ld      a, (ix+N_SAMPLE)
                 or      0
-                jp      z, loc_820
+                jp      z, loc_820                 ; instrument 0 -> no sample
+                ; --- Locate the instrument header (32 bytes per entry) ---
                 ld      l, a
                 ld      h, 0
                 add     hl, hl
@@ -1047,7 +1181,7 @@ loc_777:
                 add     hl, hl
                 add     hl, hl
                 add     hl, hl
-                ld      de, INST-32
+                ld      de, INST-32                ; start of the instrument table
                 add     hl, de
                 push    hl
                 pop     iy
@@ -1056,15 +1190,16 @@ loc_777:
                 ld      a, (ix+N_VOLUME)
                 cp      41h
                 jr      nz, loc_7B8
-                ld      a, (iy+16h)
+                ld      a, (iy+16h)                ; volume from the instrument
                 ld      (ix+SNG_VOL), a
                 ld      (ix+SEK_VOL), a
                 ld      (ix+F_VOL), 1
 
 loc_7B8:
+                ; --- Sample start address (offset by 0x49 for the STM header) ---
                 ld      l, (iy+0Eh)
                 ld      h, (iy+0Fh)
-                ld      de, 49h                 ; STM header size
+                ld      de, 49h                    ; STM header size
                 or      a
                 sbc     hl, de
                 ld      a, h
@@ -1073,31 +1208,32 @@ loc_7B8:
                 add     hl, hl
                 add     hl, hl
                 res     6, h
-                res     7, h
+                res     7, h                       ; mask to page offset
                 srl     a
                 srl     a
-                add     a, 0Ah
+                add     a, 0Ah                     ; page number for DMA
                 ld      (ix+S_MAP), a
                 ld      (ix+START_0), l
                 ld      (ix+START_0+1), h
+                ; --- Loop length and loop start ---
                 ld      l, (iy+14h)
-                ld      h, (iy+15h)
+                ld      h, (iy+15h)                ; loop end
                 inc     hl
                 ld      a, l
                 or      h
-                jr      z, loc_810
+                jr      z, loc_810                 ; no loop
                 dec     hl
                 ld      (ix+LENGHT_0), l
-                ld      (ix+LENGHT_0+1), h
+                ld      (ix+LENGHT_0+1), h         ; first length = loop end
                 ld      e, (iy+12h)
-                ld      d, (iy+13h)
+                ld      d, (iy+13h)                ; loop start
                 or      a
-                sbc     hl, de
+                sbc     hl, de                     ; loop length = end - start
                 ld      (ix+LENGHT_1), l
                 ld      (ix+LENGHT_1+1), h
                 ld      l, (ix+START_0)
                 ld      h, (ix+START_0+1)
-                add     hl, de
+                add     hl, de                     ; loop start address = start + off
                 ld      (ix+START_1), l
                 ld      (ix+START_1+1), h
                 ld      (ix+F_LOOP), 1
@@ -1106,7 +1242,7 @@ loc_7B8:
 
 loc_810:
                 ld      l, (iy+10h)
-                ld      h, (iy+11h)
+                ld      h, (iy+11h)                ; sample length
                 ld      (ix+LENGHT_0), l
                 ld      (ix+LENGHT_0+1), h
 
@@ -1117,7 +1253,7 @@ loc_820:
                 ld      a, (ix+N_NOTE)
                 cp      0FEh
                 jr      nz, loc_82E
-                ld      (ix+F_CH_ON), 1
+                ld      (ix+F_CH_ON), 1            ; key off -> disable the channel
                 jp      loc_845
 ; ---------------------------------------------------------------------------
 
@@ -1146,10 +1282,19 @@ loc_849:
                 ret
 ; End of function get_note
 
-
 ; =============== S U B R O U T I N E =======================================
 
-
+; -----------------------------------------------------------------------------
+; RET_DIV
+;   Compute the timer divisor for the current note.
+;
+;   The divisor table for each instrument is at (SEK_SAMP + 0x460).
+;   Indexed by (note & 0x0F) * 2 (12 entries per octave). The octave part of
+;   the note (high nibble) selects a right shift.
+;
+; Input:  IX = channel state, N_NOTE must be set
+; Output: HL = timer divisor
+; -----------------------------------------------------------------------------
 ret_div:
                 push    af
                 and     0Fh
@@ -1181,10 +1326,16 @@ loc_87C:
                 ret
 ; End of function ret_div
 
-
 ; =============== S U B R O U T I N E =======================================
 
-
+; -----------------------------------------------------------------------------
+; GOTO
+;   Handle commands 1, 2, 3 from the note record.
+;
+;   Command 1 (TEMPO): set ticks-per-row from the parameter (min 16, /16).
+;   Command 2 (JUMP):  set NEXT_ORD to ORDER + parameter (absolute jump).
+;   Command 3 (BREAK): force "advance to next order" on the next row.
+; -----------------------------------------------------------------------------
 goto:
                 ld      a, (ix+N_PARAM)
                 ld      e, a
@@ -1202,7 +1353,7 @@ loc_897:
                 ld      a, e
                 cp      10h
                 jr      nc, loc_89E
-                ld      a, 10h
+                ld      a, 10h                     ; clamp to minimum 16
 
 loc_89E:
                 srl     a
@@ -1224,20 +1375,23 @@ loc_8AD:
 
 break:
                 ld      a, 1
-                ld      (F_N_PAT), a
+                ld      (F_N_PAT), a               ; force order advance
                 ret
 ; End of function goto
 
-
 ; =============== S U B R O U T I N E =======================================
 
-
+; -----------------------------------------------------------------------------
+; COMMAND
+;   Run the per-tick effect for the current command on the channel.
+;   Called every tick (mid-row) from the interrupt handler.
+; -----------------------------------------------------------------------------
 command:
                 ld      a, (ix+PIK_VOL)
                 or      a
                 jr      z, loc_8C7
                 dec     a
-                ld      (ix+PIK_VOL), a
+                ld      (ix+PIK_VOL), a            ; decay VU-meter peak
 
 loc_8C7:
                 ld      a, (ix+N_PARAM)
@@ -1259,7 +1413,7 @@ loc_8C7:
                 jp      z, vibrato
                 ld      (ix+VIB_POINT), 0
                 cp      0Ah
-                ret                             ; arpeggio dispatch disabled
+                ret                                ; arpeggio dispatch disabled
 ; ---------------------------------------------------------------------------
 
 por_up:
@@ -1312,7 +1466,7 @@ v_up:
                 ld      (ix+SNG_VOL), a
                 cp      41h
                 ret     c
-                ld      (ix+SNG_VOL), 40h        ; clamp to 0x40
+                ld      (ix+SNG_VOL), 40h          ; clamp to 0x40
                 ret
 ; ---------------------------------------------------------------------------
 
@@ -1365,7 +1519,7 @@ arpejio:
 AR_0:
                 ld      h, 0
                 ld      a, l
-                ld      a, 0Fh                  ; arpeggio shift amount
+                ld      a, 0Fh                     ; arpeggio shift amount
                 ld      l, a
                 ex      de, hl
                 ld      l, (ix+SEK_DIV)
@@ -1482,9 +1636,7 @@ _vibrator_1:
                 ret
 ; End of function command
 
-
 ; =============== S U B R O U T I N E =======================================
-
 
 divide_de_by_2:
                 sra     d
@@ -1494,25 +1646,32 @@ divide_de_by_2:
                 ret
 ; End of function divide_de_by_2
 
-
 ; =============== S U B R O U T I N E =======================================
 
-
+; -----------------------------------------------------------------------------
+; NEX_ORD
+;   Move NEXT_ORD to the next order byte and reconfigure the four pattern
+;   pointers (ADR_PAT) to point at the new pattern's first row.
+;
+;   Order byte format: high nibble = pattern number.
+;   0x63 is the end-of-song marker; on 0x63 the player wraps to the start
+;   of ORDER and forces all channels off.
+; -----------------------------------------------------------------------------
 next_order:
                 ld      a, (F_PRINT)
                 or      a
                 call    nz, print_new_line
                 ld      hl, (NEXT_ORD)
                 ld      a, (hl)
-                cp      63h                     ; end-of-song marker
+                cp      63h                        ; end-of-song marker
                 jr      nz, loc_A8A
-                ld      hl, ORDER
+                ld      hl, ORDER                  ; wrap to start
                 ld      a, 1
-                ld      (SEG_A+F_CH_ON), a
+                ld      (SEG_A+F_CH_ON), a         ; silence all channels on wrap
                 ld      (SEG_B+F_CH_ON), a
                 ld      (SEG_C+F_CH_ON), a
                 ld      (SEG_D+F_CH_ON), a
-                ld      a, (hl)
+                ld      a, (hl)                    ; re-read the first order byte
 
 loc_A8A:
                 ld      (SEK_ORD), hl
@@ -1520,33 +1679,33 @@ loc_A8A:
                 ld      (NEXT_ORD), hl
                 ld      (NUM_PART), a
                 ld      h, a
-                and     0F0h
+                and     0F0h                       ; high nibble = pattern number
                 srl     a
                 srl     a
                 srl     a
                 srl     a
-                add     a, 0Ah                  ; pattern -> page number
-                ld      (0F342h), a             ; side effect: BIOS variable
-                or      0C0h
+                add     a, 0Ah                     ; page = pattern + 0x0A
+                ld      (0F342h), a                ; BIOS/BDOS variable (side effect)
+                or      0C0h                       ; bits 7..6 = 11
                 ld      bc, 7DFFh
-                out     (c), a
+                out     (c), a                     ; RAM/ROM bank select
                 ld      l, 0
-                add     hl, hl
-                add     hl, hl
+                add     hl, hl                     ; *2
+                add     hl, hl                     ; *4
                 ld      a, h
                 and     3Fh
-                or      40h
-                ld      h, a
+                or      40h                        ; force page 1 (0x4000..0x7FFF)
+                ld      h, a                       ; HL = pattern base address
                 ld      de, 4
-                ld      (SEG_A+ADR_PAT), hl
+                ld      (SEG_A+ADR_PAT), hl        ; ch A at offset 0
                 add     hl, de
-                ld      (SEG_B+ADR_PAT), hl
+                ld      (SEG_B+ADR_PAT), hl        ; ch B at offset 4
                 add     hl, de
-                ld      (SEG_C+ADR_PAT), hl
+                ld      (SEG_C+ADR_PAT), hl        ; ch C at offset 8
                 add     hl, de
-                ld      (SEG_D+ADR_PAT), hl
+                ld      (SEG_D+ADR_PAT), hl        ; ch D at offset 12
                 sub     a
-                ld      (SEG_A+PAT_POINT), a
+                ld      (SEG_A+PAT_POINT), a       ; reset row counters
                 ld      (SEG_B+PAT_POINT), a
                 ld      (SEG_C+PAT_POINT), a
                 ld      (SEG_D+PAT_POINT), a
@@ -1569,10 +1728,16 @@ nmi_hook:
 
 ; =============== S U B R O U T I N E =======================================
 
-
+; -----------------------------------------------------------------------------
+; NMI
+;   Handles the 8237 DMA terminal-count interrupt. Reads the 8237 status
+;   register (DMACOM) to see which channel(s) finished, then for each armed
+;   channel (F_RESTART) reprograms it to the loop half and re-enables it
+;   in autoinit mode.
+; -----------------------------------------------------------------------------
 nmi_imp:
                 ld      bc, DMACOM
-                in      e, (c)
+                in      e, (c)                     ; read TC status bits
                 rrc     e
                 jr      nc, loc_B15
                 ld      a, (SEG_A+F_RESTART)
@@ -1581,18 +1746,18 @@ nmi_imp:
                 ld      hl, (SEG_A+NMI_START)
                 ld      bc, DMA_A
                 out     (c), l
-                out     (c), h
+                out     (c), h                     ; new base address
                 inc     c
                 ld      hl, (SEG_A+NMI_LENGHT)
                 out     (c), l
-                out     (c), h
+                out     (c), h                     ; new count
                 sub     a
-                ld      (SEG_A+F_RESTART), a
+                ld      (SEG_A+F_RESTART), a       ; disarm
                 ld      bc, DMAMOD
-                ld      a, 58h                  ; 8237 mode: autoinit (ch A)
+                ld      a, 58h                     ; 8237 mode: autoinit (ch A)
                 out     (c), a
                 ld      bc, DMAMASK
-                ld      a, 0
+                ld      a, 0                       ; unmask -> restart
                 out     (c), a
 
 loc_B15:
@@ -1613,7 +1778,7 @@ loc_B15:
                 sub     a
                 ld      (SEG_B+F_RESTART), a
                 ld      bc, DMAMOD
-                ld      a, 59h                  ; 8237 mode: autoinit (ch B)
+                ld      a, 59h                     ; 8237 mode: autoinit (ch B)
                 out     (c), a
                 ld      bc, DMAMASK
                 ld      a, 1
@@ -1637,7 +1802,7 @@ loc_B44:
                 sub     a
                 ld      (SEG_C+F_RESTART), a
                 ld      bc, DMAMOD
-                ld      a, 5Ah                  ; 8237 mode: autoinit (ch C)
+                ld      a, 5Ah                     ; 8237 mode: autoinit (ch C)
                 out     (c), a
                 ld      bc, DMAMASK
                 ld      a, 2
@@ -1661,7 +1826,7 @@ loc_B73:
                 sub     a
                 ld      (SEG_D+F_RESTART), a
                 ld      bc, DMAMOD
-                ld      a, 5Bh                  ; 8237 mode: autoinit (ch D)
+                ld      a, 5Bh                     ; 8237 mode: autoinit (ch D)
                 out     (c), a
                 ld      bc, DMAMASK
                 ld      a, 3
@@ -1672,28 +1837,31 @@ loc_BA2:
                 ret
 ; End of function nmi_imp
 
-
 ; =============== S U B R O U T I N E =======================================
 
-
+; -----------------------------------------------------------------------------
+; SET_INT
+;   Save the current INT 38h and NMI vectors, then install PRG_INT at 0038h
+;   and NMI at 0066h.
+; -----------------------------------------------------------------------------
 set_interrupt_hook:
                 di
                 ld      hl, 0FD9Fh
                 ld      de, 6E4h
                 ld      bc, 5
-                ldir
+                ldir                               ; save interrupt hook
                 ld      hl, int_hook_vector
                 ld      de, 0FD9Fh
                 ld      bc, 5
-                ldir
+                ldir                               ; set interrupt hook
                 ld      hl, nmi_hook_buffer
                 ld      de, 0FD90h
                 ld      bc, 5
-                ldir
+                ldir                               ; save nmi hook
                 ld      a, 0C3h
-                ld      (66h), a
+                ld      (66h), a                   ; set nmi hook opcode
                 ld      hl, nmi_hook
-                ld      (67h), hl
+                ld      (67h), hl                  ; set nmi hook address
                 ret
 ; End of function set_interrupt_hook
 
@@ -1714,7 +1882,10 @@ nmi_hook_buffer:
 
 ; =============== S U B R O U T I N E =======================================
 
-
+; -----------------------------------------------------------------------------
+; GET_INT
+;   Restore the original INT 38h and NMI vectors from BUF_INT / BUF_NMI.
+; -----------------------------------------------------------------------------
 remove_interrupt_hook:
                 di
                 ld      hl, 6E4h
@@ -1726,10 +1897,14 @@ remove_interrupt_hook:
                 ret
 ; End of function remove_interrupt_hook
 
-
 ; =============== S U B R O U T I N E =======================================
 
-
+; -----------------------------------------------------------------------------
+; INI_DIV
+;   Precompute the per-instrument divisor table I_DIV. For each of the
+;   31 instruments, IDIV_1 multiplies the 12 standard divisors by the
+;   instrument's frequency ratio and stores the results in I_DIV.
+; -----------------------------------------------------------------------------
 init_div:
                 ld      ix, INST
                 ld      iy, I_DIV
@@ -1748,21 +1923,26 @@ loc_BFB:
                 ret
 ; End of function init_div
 
-
 ; =============== S U B R O U T I N E =======================================
 
-
+; -----------------------------------------------------------------------------
+; IDIV_1
+;   For one instrument:
+;     1. Read the instrument's frequency and compute ratio = freq / 0x2100.
+;     2. For each of the 12 notes in ST_DIV, multiply the standard divisor
+;        by this ratio and store the result in I_DIV.
+; -----------------------------------------------------------------------------
 inst_div:
                 ld      e, (ix+18h)
-                ld      d, (ix+19h)
-                ld      bc, 4200h
-                call    divide
+                ld      d, (ix+19h)                ; DE = instrument frequency
+                ld      bc, 4200h                  ; standard frequency
+                call    divide                     ; BC = BC / DE (ratio)
                 ld      e, c
-                ld      d, b
+                ld      d, b                       ; DE = ratio
                 push    iy
-                pop     bc
-                ld      a, 0Ch
-                ld      hl, standart_divisors
+                pop     bc                         ; BC = destination table
+                ld      a, 0Ch                     ; 12 notes per octave
+                ld      hl, standart_divisors      ; standard divisors
 
 loc_C1F:
                 push    af
@@ -1770,19 +1950,19 @@ loc_C1F:
                 push    bc
                 ld      c, (hl)
                 inc     hl
-                ld      b, (hl)
-                call    multiply
-                pop     hl
+                ld      b, (hl)                    ; BC = standard divisor
+                call    multiply                   ; HLBC * DE -> BC,HL
+                pop     hl                         ; restore destination pointer
                 ld      (hl), c
                 inc     hl
-                ld      (hl), b
+                ld      (hl), b                    ; store the scaled divisor
                 inc     hl
                 push    hl
-                pop     bc
-                pop     hl
+                pop     bc                         ; BC = next destination
+                pop     hl                         ; HL = next ST_DIV entry
                 pop     af
                 inc     hl
-                inc     hl
+                inc     hl                         ; ST_DIV is words
                 dec     a
                 jr      nz, loc_C1F
                 ret
@@ -1805,29 +1985,34 @@ standart_divisors:
 
 ; =============== S U B R O U T I N E =======================================
 
-
+; -----------------------------------------------------------------------------
+; LOAD
+;   Open the .STM file, read its header into DATA, verify the version and
+;   pattern count, then read the pattern data into memory (in 16 KB pages)
+;   and de-interleave (XOR 0x80) each byte of the pattern area.
+; -----------------------------------------------------------------------------
 load_stm_file:
                 ld      hl, 5Ch+12
                 ld      de, 5Ch+13
                 ld      bc, 18h
                 ld      (hl), 0
-                ldir
-                ld      a, 53h                  ; 'S'
-                ld      (5Ch+9), a
-                ld      a, 54h                  ; 'T'
+                ldir                               ; zero the FCB filename area
+                ld      a, 53h                     ; 'S'
+                ld      (5Ch+9), a                 ; force extension "STM"
+                ld      a, 54h                     ; 'T'
                 ld      (5Ch+10), a
-                ld      a, 4Dh                  ; 'M'
+                ld      a, 4Dh                     ; 'M'
                 ld      (5Ch+11), a
                 call    open_file
                 ld      hl, 10h
-                ld      (5Ch+14), hl
-                ld      de, DATA
+                ld      (5Ch+14), hl               ; record count = 16 (header block)
+                ld      de, DATA                   ; set DMA to DATA
                 ld      c, 1Ah
                 call    5
-                ld      hl, 49h
+                ld      hl, 49h                    ; 73 records (header + instruments)
                 ld      de, 5Ch
                 ld      c, 27h
-                call    5
+                call    5                          ; read random block
                 ld      de, bad_version_message
                 ld      a, (DATA+1Eh)
                 cp      2
@@ -1838,33 +2023,33 @@ load_stm_file:
                 jp      nz, print_error
                 ld      de, loading_message
                 ld      c, 9
-                call    5
+                call    5                          ; print "Loading : "
                 sub     a
                 ld      (DATA+13h), a
                 ld      de, DATA
-                call    print_string
+                call    print_string               ; print the file name
                 ld      hl, DATA
                 ld      de, 119Dh
                 ld      bc, 13h
                 ldir
                 ld      de, 4000h
                 ld      c, 1Ah
-                call    5
-                ld      hl, 400h
-                ld      c, 0Ah
+                call    5                          ; DMA -> 0x4000 (patterns go here)
+                ld      hl, 400h                   ; 1024 records = 16 KB
+                ld      c, 0Ah                     ; starting page = 0x0A
 
 loc_CC7:
                 push    bc
                 push    hl
-                ld      h, 40h
+                ld      h, 40h                     ; bank 0x40 (page 1)
                 ld      a, c
-                call    24h
+                call    24h                        ; MSX-DOS: 0024h hook
                 pop     hl
                 ld      de, 5Ch
                 ld      c, 27h
-                call    5
+                call    5                          ; read 16 KB
                 or      a
-                jr      nz, loc_CE3
+                jr      nz, loc_CE3                ; short read -> last page
                 ld      hl, 400h
                 pop     bc
                 inc     c
@@ -1874,27 +2059,27 @@ loc_CC7:
 ; ---------------------------------------------------------------------------
 
 loc_CE3:
-                pop     bc
-                ld      a, (DATA+21h)
+                pop     bc                         ; last page (instruments?)
+                ld      a, (DATA+21h)              ; number of patterns
                 ld      l, a
                 ld      h, 0
-                add     hl, hl
-                add     hl, hl
-                add     hl, hl
-                add     hl, hl
-                add     hl, hl
-                add     hl, hl
+                add     hl, hl                     ; *2
+                add     hl, hl                     ; *4
+                add     hl, hl                     ; *8
+                add     hl, hl                     ; *16
+                add     hl, hl                     ; *32
+                add     hl, hl                     ; *64
                 ld      a, h
                 rrca
                 rrca
                 and     1Fh
-                add     a, 0Ah
-                add     hl, hl
-                add     hl, hl
-                add     hl, hl
-                add     hl, hl
+                add     a, 0Ah                     ; start page for instruments
+                add     hl, hl                     ; *128
+                add     hl, hl                     ; *256
+                add     hl, hl                     ; *512
+                add     hl, hl                     ; *1024
                 res     7, h
-                set     6, h
+                set     6, h                       ; clamp to page 1
                 inc     c
 
 loc_D00:
@@ -1902,13 +2087,13 @@ loc_D00:
                 push    hl
                 push    bc
                 ld      h, 40h
-                call    24h
+                call    24h                        ; MSX-DOS: 0024h hook
                 pop     bc
                 pop     hl
 
 loc_D0A:
                 ld      a, (hl)
-                xor     80h
+                xor     80h                        ; de-interleave
                 ld      (hl), a
                 inc     hl
                 ld      a, h
@@ -1921,14 +2106,16 @@ loc_D0A:
                 jr      nz, loc_D00
                 ld      a, 5
                 ld      h, 40h
-                call    24h
+                call    24h                        ; MSX-DOS: 0024h hook
                 ret
 ; End of function load_stm_file
 
-
 ; =============== S U B R O U T I N E =======================================
 
-
+; -----------------------------------------------------------------------------
+; PRINT
+;   Print a string up to 0 (zero-terminated).
+; -----------------------------------------------------------------------------
 print_string:
                 ld      a, (de)
                 or      a
@@ -1943,10 +2130,12 @@ print_string:
                 jr      print_string
 ; End of function print_string
 
-
 ; =============== S U B R O U T I N E =======================================
 
-
+; -----------------------------------------------------------------------------
+; HEX
+;   Print a byte as two hex digits.
+; -----------------------------------------------------------------------------
 print_hex:
                 push    ix
                 push    af
@@ -1963,19 +2152,17 @@ print_hex:
                 ret
 ; End of function print_hex
 
-
 ; =============== S U B R O U T I N E =======================================
-
 
 print_hex_hibble:
                 cp      0Ah
                 jr      nc, loc_D55
-                add     a, 30h                  ; '0'..'9'
+                add     a, 30h                     ; '0'..'9'
                 jr      loc_D57
 ; ---------------------------------------------------------------------------
 
 loc_D55:
-                add     a, 37h                  ; 'A'..'F'
+                add     a, 37h                     ; 'A'..'F'
 
 loc_D57:
                 rst     30h
@@ -1987,20 +2174,22 @@ locret_D5B:
                 ret
 ; End of function print_hex_hibble
 
-
 ; =============== S U B R O U T I N E =======================================
 
-
+; -----------------------------------------------------------------------------
+; ENTER
+;   Print a newline (LF + CR).
+; -----------------------------------------------------------------------------
 print_new_line:
                 push    ix
-                ld      a, 0Ah                  ; LF
+                ld      a, 0Ah                     ; LF
                 rst     30h
                 ex      af, af'
                 jr      loc_D64
 ; ---------------------------------------------------------------------------
 
 loc_D64:
-                ld      a, 0Dh                  ; CR
+                ld      a, 0Dh                     ; CR
                 rst     30h
                 ex      af, af'
                 jr      loc_D6A
@@ -2011,13 +2200,15 @@ loc_D6A:
                 ret
 ; End of function print_new_line
 
-
 ; =============== S U B R O U T I N E =======================================
 
-
+; -----------------------------------------------------------------------------
+; SPACE
+;   Print a space.
+; -----------------------------------------------------------------------------
 print_space:
                 push    ix
-                ld      a, 1Ch                  ; space
+                ld      a, 1Ch                     ; space
                 rst     30h
                 ex      af, af'
                 jr      loc_D75
@@ -2028,10 +2219,12 @@ loc_D75:
                 ret
 ; End of function print_space
 
-
 ; =============== S U B R O U T I N E =======================================
 
-
+; -----------------------------------------------------------------------------
+; OUT_PUT
+;   Debug-print one channel's current note as a hex dump.
+; -----------------------------------------------------------------------------
 print_curent_note:
                 ld      a, (ix+N_NOTE)
                 call    print_hex
@@ -2045,12 +2238,12 @@ print_curent_note:
                 ld      a, (ix+N_COMAND)
                 or      a
                 jr      z, loc_D9D
-                add     a, 40h                  ; command -> letter 'A'+cmd-1
+                add     a, 40h                     ; command -> letter 'A'+cmd-1
                 jr      loc_D9F
 ; ---------------------------------------------------------------------------
 
 loc_D9D:
-                ld      a, 2Eh                  ; '.'
+                ld      a, 2Eh                     ; '.'
 
 loc_D9F:
                 push    ix
@@ -2070,18 +2263,20 @@ loc_DA5:
                 ret
 ; End of function print_curent_note
 
-
 ; =============== S U B R O U T I N E =======================================
 
-
+; -----------------------------------------------------------------------------
+; OPEN_FILE
+;   Open the file whose FCB is at 005Ch.
+; -----------------------------------------------------------------------------
 open_file:
                 ld      de, 5Ch
                 ld      c, 0Fh
-                call    5
+                call    5                          ; open file
                 ld      hl, 0
-                ld      (5Ch+21h), hl
+                ld      (5Ch+21h), hl              ; reset current record
                 or      a
-                ret     z
+                ret     z                          ; success
                 ld      de, file_not_found_message
                 jp      print_error
 ; ---------------------------------------------------------------------------
@@ -2107,106 +2302,118 @@ file_not_found_message:
 
 print_error:
                 ld      c, 9
-                call    5
-                rst     0
+                call    5                          ; print the $-terminated string
+                rst     0                          ; warm boot
 ; End of function open_file
-
 
 ; =============== S U B R O U T I N E =======================================
 
-
+; -----------------------------------------------------------------------------
+; INI_PRT
+;   Configure the 8254 timers and the 8237 DMA controller for Magic Sound
+;   playback.
+; -----------------------------------------------------------------------------
 int_ptr:
-                ld      bc, TIMUP0
-                ld      a, 34h                  ; 8254 #1 cnt0, mode 2
+                ld      bc, TIMUP0                 ; 8254 #1 control
+                ld      a, 34h                     ; counter 0, mode 2, LSB/MSB
                 out     (c), a
-                ld      a, 74h                  ; 8254 #1 cnt1, mode 2
+                ld      a, 74h                     ; counter 1, mode 2
                 out     (c), a
-                ld      a, 0B4h                 ; 8254 #1 cnt2, mode 2
+                ld      a, 0B4h                    ; counter 2, mode 2
                 out     (c), a
-                ld      bc, TIMUP1
-                ld      a, 34h                  ; 8254 #2 cnt0, mode 2
+                ld      bc, TIMUP1                 ; 8254 #2 control
+                ld      a, 34h                     ; counter 0, mode 2
                 out     (c), a
-                ld      a, 76h                  ; 8254 #2 cnt1, mode 3 (square)
+                ld      a, 76h                     ; counter 1, mode 3 (square)
                 out     (c), a
-                ld      bc, TIM_E
+                ld      bc, TIM_E                  ; aux counter
                 ld      a, 4
-                out     (c), a
+                out     (c), a                     ; load 4 (LSB)
                 sub     a
-                out     (c), a
-                ld      bc, DMARES
-                out     (c), a
+                out     (c), a                     ; load 0 (MSB) -> period = 4
+                ld      bc, DMARES                 ; 8237 master clear
+                out     (c), a                     ; A = 0
                 ld      bc, DMACOM
                 sub     a
-                out     (c), a
+                out     (c), a                     ; command = 0
                 ld      bc, DMAMASK
-                ld      hl, 405h
+                ld      hl, 405h                   ; mask 05h then 04h
                 out     (c), l
                 out     (c), h
-                ld      hl, 607h
+                ld      hl, 607h                   ; mask 07h then 06h
                 out     (c), l
                 out     (c), h
                 ret
 ; End of function int_ptr
 
-
 ; =============== S U B R O U T I N E =======================================
 
-
+; -----------------------------------------------------------------------------
+; MUL
+;   Multiply the 16-bit value in BC by the 16-bit value in DE, using the
+;   HL register pair as an accumulator. Result is returned in BC (high) and
+;   HL (low): 32-bit product BC:HL.
+; -----------------------------------------------------------------------------
 multiply:
-                ld      hl, 0
-                ld      a, b
-                ld      b, 11h
+                ld      hl, 0                      ; HL = low half of accumulator
+                ld      a, b                       ; A = high byte of BC (multiplier)
+                ld      b, 11h                     ; 17 iterations (16 + 1)
                 jr      loc_E35
 ; ---------------------------------------------------------------------------
 
 loc_E2E:
-                jr      nc, loc_E31
-                add     hl, de
+                jr      nc, loc_E31                ; no carry -> skip add
+                add     hl, de                     ; add multiplicand
 
 loc_E31:
                 rr      h
-                rr      l
+                rr      l                          ; shift accumulator right
 
 loc_E35:
-                rr      a
+                rr      a                          ; shift multiplier, carry out
                 rr      c
                 djnz    loc_E2E
-                ld      b, a
+                ld      b, a                       ; high half = A
                 ret
 ; End of function multiply
 
-
 ; =============== S U B R O U T I N E =======================================
 
-
+; -----------------------------------------------------------------------------
+; DIV
+;   Divide the 16-bit value in BC by the 16-bit value in DE, returning
+;   the quotient in BC and the remainder in HL. Uses a restoring
+;   shift-and-subtract algorithm.
+; -----------------------------------------------------------------------------
 divide:
-                ld      hl, 0
-                ld      a, b
-                ld      b, 10h
+                ld      hl, 0                      ; HL = remainder
+                ld      a, b                       ; A = high byte of dividend
+                ld      b, 10h                     ; 16 iterations
                 rl      c
                 rla
 
 loc_E46:
                 rl      l
-                rl      h
-                jr      c, loc_E5F
+                rl      h                          ; shift remainder left
+                jr      c, loc_E5F                 ; overflow -> subtract
                 sbc     hl, de
-                jr      nc, loc_E51
-                add     hl, de
+                jr      nc, loc_E51                ; no borrow -> quotient bit = 1
+                add     hl, de                     ; restore remainder
 
 loc_E51:
-                ccf
+                ccf                                ; complement carry into quotient
 
 loc_E52:
                 rl      c
                 rla
                 djnz    loc_E46
                 ld      b, a
-                add     hl, hl
+; Integer part from ( BC, HL )
+                add     hl, hl                     ; remainder * 2
                 or      a
-                sbc     hl, de
-                ret     c
-                inc     bc
+                sbc     hl, de                     ; (rem * 2) - divisor
+                ret     c                          ; < 0 -> done
+                inc     bc                         ; round up
                 ret
 ; ---------------------------------------------------------------------------
 
@@ -2216,10 +2423,12 @@ loc_E5F:
                 jr      loc_E52
 ; End of function divide
 
-
 ; =============== S U B R O U T I N E =======================================
 
-
+; -----------------------------------------------------------------------------
+; INIT_SCREEN
+;   Set up the screen mode and draw the initial VU-meters and marquee.
+; -----------------------------------------------------------------------------
 init_screen:
                 ld      a, 1
                 ld      bc, 300h
@@ -2242,7 +2451,7 @@ init_screen:
                 ld      iy, 800h
                 call    1Ch
                 ld      de, 0F16h
-                call    print_string
+                call    print_string               ; print "Loading : "
                 ld      hl, 11B2h
                 ld      b, 9
 

@@ -277,6 +277,15 @@ If you want to experiment with digital sound without the board — you can try a
 - Pattern: **64 rows** (`CP 40H` in `NEXT_NOT`), 4 channels, offset **4 bytes per channel** within a row.
 - Loading goes in blocks of 32 records (`BDOS 27H`), buffer address — `DATA` (`#2000`).
 
+Вот готовый параграф на русском и английском — с исправленной опечаткой и нормальной пунктуацией.
+
+## Magic Sound Player Source Code
+
+For experiments with the board, studying how it works, or integrating the player into your own project, you can use the working source code of a music player for this board. It is built with a modern assembler and can be launched in an emulator or on real hardware straight from the command line.
+
+[Magic Sound Player Source Code](https://github.com/hww/magic-sound-player)
+
+
 ## What's next
 
 The Magic Sound is covered. The next section is [the port reference: the full table and warnings about conflicts.](./06-ports.md)

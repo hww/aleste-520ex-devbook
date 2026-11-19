@@ -2,8 +2,8 @@
 
 <table>
 <tr>
-<td width="50%" valign="top">
-  
+<td width="50%" valign="top" markdown="1">
+
 Welcome! This repository is dedicated to creating a clean, human-oriented, and comprehensive development guide for the **Aleste 520EX** computer and its modern re-imagining, the **Aleste LX**.
 
 ### Why this repo exists?
@@ -23,7 +23,7 @@ To keep our documentation accurate for everyone, we follow these simple rules:
 [Aleste 520EX — programming manual](./en/index.md)
 
 </td>
-<td width="50%" valign="top">
+<td width="50%" valign="top" markdown="1">
 
 Добро пожаловать! Этот репозиторий создан для того, чтобы собрать понятное, структурированное и ориентированное на человека руководство по программированию оригинального компьютера **Aleste 520EX** и его современной ПЛИС-модификации **Aleste LX**.
 

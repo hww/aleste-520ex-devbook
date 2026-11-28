@@ -36,6 +36,117 @@
       gtag('js', new Date());
       gtag('config', 'G-GPHE3GSVLY', { 'cookie_domain': 'auto' });
     </script>
+    <!-- Кастомные стили для компактных таблиц, ссылок и навигации -->
+    <style>
+      /* 1. Четкие ссылки в основном контенте */
+      #main_content a {
+        color: #0066cc;
+        text-decoration: underline;
+        text-underline-offset: 3px;
+        text-decoration-thickness: 1px;
+        transition: color 0.15s ease, background-color 0.15s ease;
+      }
+      #main_content a:hover,
+      #main_content a:focus {
+        color: #004499;
+        background-color: rgba(0, 102, 204, 0.08);
+        text-decoration-thickness: 2px;
+      }
+      #main_content a:visited {
+        color: #551a8b;
+      }
+
+      /* 2. Навигационная панель в шапке */
+      .site-nav {
+        margin-top: 14px;
+        padding-top: 10px;
+        border-top: 1px solid rgba(255, 255, 255, 0.15);
+        font-size: 14px;
+      }
+      .site-nav a {
+        color: #66b2ff;
+        text-decoration: none;
+        margin-right: 16px;
+        font-weight: 500;
+      }
+      .site-nav a:hover {
+        color: #ffffff;
+        text-decoration: underline;
+      }
+
+      /* 3. Визуальный отклик у заголовка в шапке */
+      #project_title a {
+        color: #ffffff;
+        text-decoration: none;
+        border-bottom: 1px dashed rgba(255, 255, 255, 0.35);
+      }
+      #project_title a:hover {
+        border-bottom-color: #ffffff;
+      }
+
+      /* 4. Компактные таблицы для технической документации */
+      /* Технические таблицы */
+      table {
+        display: table;              /* на случай, если тема делает таблицу блоком */
+        width: 100%;                 /* все таблицы одной ширины */
+        border-collapse: collapse;
+        margin: 1em 0 1.6em;
+        font-size: 0.88em;
+        line-height: 1.35;
+        border-top: 2px solid rgba(128, 128, 128, 0.55);
+        border-bottom: 2px solid rgba(128, 128, 128, 0.55);
+      }
+      
+      table th,
+      table td {   
+        padding: 0.3em 0.7em;
+        text-align: left;
+        vertical-align: top;
+        border: 0;
+        border-bottom: 1px solid rgba(128, 128, 128, 0.3);
+      }
+      
+      table th {
+        color: #6a6a6a;
+        background: rgba(128, 128, 128, 0.12);
+        font-weight: 600;
+        border-bottom: 1px solid rgba(128, 128, 128, 0.55);
+      }
+      
+      table tbody tr:nth-child(even) {
+        background: rgba(128, 128, 128, 0.06);
+      }
+      
+      table tbody tr:last-child td {
+        border-bottom: 0;
+      }
+      
+      table code {
+        font-size: 0.95em;
+        white-space: nowrap;
+      }
+      
+      /* На узких экранах таблицу можно прокрутить вбок, а не ломать страницу */
+      @media (max-width: 640px) {
+        table {
+          display: block;
+          overflow-x: auto;
+          font-size: 0.82em;
+        }
+      }
+    </style>
+
+    <!-- Поддержка математических формул LaTeX (MathJax) -->
+    <script>
+      MathJax = {
+        tex: {
+          inlineMath: [['$', '$'], ['\\(', '\\)']],
+          displayMath: [['$$', '$$'], ['\\[', '\\]']]
+        }
+      };
+    </script>
+    <script id="MathJax-script" async src="https://jsdelivr.net"></script>    
+
   </head>
 
   <body>

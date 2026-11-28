@@ -1,5 +1,5 @@
 title: Aleste 520EX — Developer's Book
-description: Bilingual (EN/RU) developer's handbook and architecture guide for the Aleste 520EX Z80 computers.
+description: Bilingual (EN/RU) developer's handbook and architecture guide for the Aleste 520EX computer.
 remote_theme: pages-themes/slate@v0.2.0
 plugins:
   - jekyll-remote-theme

@@ -13,7 +13,7 @@
     <!-- Основные мета-теги для индексации -->
     <title>{{ page_title }}{% if page.title and site.title %} | {{ site.title }}{% endif %}</title>
     <meta name="description" content="{{ page_desc | strip_html | normalize_whitespace | escape }}">
-    <link rel="canonical" href="{{ page.url | absolute_url }}">
+    <link rel="canonical" href="https://hww.github.io{{ page.url }}">
 
     <!-- Open Graph (Telegram, VK и соцсети) -->
     <meta property="og:type" content="website">

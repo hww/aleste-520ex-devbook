@@ -1,4 +1,4 @@
-# Aleste 520EX / Aleste LX Developer's Book
+# Aleste 520EX Developer's Book
 
 <table>
 <tr>
